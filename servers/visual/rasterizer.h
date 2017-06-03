@@ -52,12 +52,12 @@ public:
 	virtual RID environment_create() = 0;
 
 	virtual void environment_set_background(RID p_env, VS::EnvironmentBG p_bg) = 0;
-	virtual void environment_set_skybox(RID p_env, RID p_skybox) = 0;
-	virtual void environment_set_skybox_scale(RID p_env, float p_scale) = 0;
+	virtual void environment_set_sky(RID p_env, RID p_sky) = 0;
+	virtual void environment_set_sky_scale(RID p_env, float p_scale) = 0;
 	virtual void environment_set_bg_color(RID p_env, const Color &p_color) = 0;
 	virtual void environment_set_bg_energy(RID p_env, float p_energy) = 0;
 	virtual void environment_set_canvas_max_layer(RID p_env, int p_max_layer) = 0;
-	virtual void environment_set_ambient_light(RID p_env, const Color &p_color, float p_energy = 1.0, float p_skybox_contribution = 0.0) = 0;
+	virtual void environment_set_ambient_light(RID p_env, const Color &p_color, float p_energy = 1.0, float p_sky_contribution = 0.0) = 0;
 
 	virtual void environment_set_dof_blur_near(RID p_env, bool p_enable, float p_distance, float p_transition, float p_far_amount, VS::EnvironmentDOFBlurQuality p_quality) = 0;
 	virtual void environment_set_dof_blur_far(RID p_env, bool p_enable, float p_distance, float p_transition, float p_far_amount, VS::EnvironmentDOFBlurQuality p_quality) = 0;
@@ -163,11 +163,12 @@ public:
 
 	virtual RID texture_create() = 0;
 	virtual void texture_allocate(RID p_texture, int p_width, int p_height, Image::Format p_format, uint32_t p_flags = VS::TEXTURE_FLAGS_DEFAULT) = 0;
-	virtual void texture_set_data(RID p_texture, const Image &p_image, VS::CubeMapSide p_cube_side = VS::CUBEMAP_LEFT) = 0;
-	virtual Image texture_get_data(RID p_texture, VS::CubeMapSide p_cube_side = VS::CUBEMAP_LEFT) const = 0;
+	virtual void texture_set_data(RID p_texture, const Ref<Image> &p_image, VS::CubeMapSide p_cube_side = VS::CUBEMAP_LEFT) = 0;
+	virtual Ref<Image> texture_get_data(RID p_texture, VS::CubeMapSide p_cube_side = VS::CUBEMAP_LEFT) const = 0;
 	virtual void texture_set_flags(RID p_texture, uint32_t p_flags) = 0;
 	virtual uint32_t texture_get_flags(RID p_texture) const = 0;
 	virtual Image::Format texture_get_format(RID p_texture) const = 0;
+	virtual uint32_t texture_get_texid(RID p_texture) const = 0;
 	virtual uint32_t texture_get_width(RID p_texture) const = 0;
 	virtual uint32_t texture_get_height(RID p_texture) const = 0;
 	virtual void texture_set_size_override(RID p_texture, int p_width, int p_height) = 0;
@@ -186,10 +187,10 @@ public:
 
 	virtual void textures_keep_original(bool p_enable) = 0;
 
-	/* SKYBOX API */
+	/* SKY API */
 
-	virtual RID skybox_create() = 0;
-	virtual void skybox_set_texture(RID p_skybox, RID p_cube_map, int p_radiance_size) = 0;
+	virtual RID sky_create() = 0;
+	virtual void sky_set_texture(RID p_sky, RID p_cube_map, int p_radiance_size) = 0;
 
 	/* SHADER API */
 
@@ -492,7 +493,7 @@ public:
 
 	virtual void update_dirty_resources() = 0;
 
-	static RasterizerStorage *base_signleton;
+	static RasterizerStorage *base_singleton;
 	RasterizerStorage();
 	virtual ~RasterizerStorage() {}
 };
@@ -805,7 +806,7 @@ public:
 					case Item::Command::TYPE_MESH: {
 
 						const Item::CommandMesh *mesh = static_cast<const Item::CommandMesh *>(c);
-						Rect3 aabb = RasterizerStorage::base_signleton->mesh_get_aabb(mesh->mesh, mesh->skeleton);
+						Rect3 aabb = RasterizerStorage::base_singleton->mesh_get_aabb(mesh->mesh, mesh->skeleton);
 
 						r = Rect2(aabb.pos.x, aabb.pos.y, aabb.size.x, aabb.size.y);
 
@@ -813,7 +814,7 @@ public:
 					case Item::Command::TYPE_MULTIMESH: {
 
 						const Item::CommandMultiMesh *multimesh = static_cast<const Item::CommandMultiMesh *>(c);
-						Rect3 aabb = RasterizerStorage::base_signleton->multimesh_get_aabb(multimesh->multimesh);
+						Rect3 aabb = RasterizerStorage::base_singleton->multimesh_get_aabb(multimesh->multimesh);
 
 						r = Rect2(aabb.pos.x, aabb.pos.y, aabb.size.x, aabb.size.y);
 
@@ -931,7 +932,7 @@ public:
 	virtual RasterizerCanvas *get_canvas() = 0;
 	virtual RasterizerScene *get_scene() = 0;
 
-	virtual void set_boot_image(const Image &p_image, const Color &p_color, bool p_scale) = 0;
+	virtual void set_boot_image(const Ref<Image> &p_image, const Color &p_color, bool p_scale) = 0;
 
 	virtual void initialize() = 0;
 	virtual void begin_frame() = 0;

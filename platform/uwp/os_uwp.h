@@ -63,7 +63,7 @@ public:
 			CHAR_EVENT_MESSAGE
 		};
 
-		InputModifierState mod_state;
+		bool alt, shift, control;
 		MessageType type;
 		bool pressed;
 		unsigned int scancode;
@@ -227,7 +227,7 @@ public:
 	virtual String get_clipboard() const;
 
 	void set_cursor_shape(CursorShape p_shape);
-	void set_icon(const Image &p_icon);
+	void set_icon(const Ref<Image> &p_icon);
 
 	virtual String get_executable_path() const;
 
@@ -257,7 +257,7 @@ public:
 
 	virtual bool get_swap_ok_cancel() { return true; }
 
-	void input_event(InputEvent &p_event);
+	void input_event(const Ref<InputEvent> &p_event);
 
 	virtual PowerState get_power_state();
 	virtual int get_power_seconds_left();

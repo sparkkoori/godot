@@ -121,7 +121,7 @@ class OS_X11 : public OS_Unix {
 
 	PhysicsServer *physics_server;
 	unsigned int get_mouse_button_state(unsigned int p_x11_state);
-	InputModifierState get_key_modifier_state(unsigned int p_x11_state);
+	void get_key_modifier_state(unsigned int p_x11_state, Ref<InputEventWithModifiers> state);
 	Physics2DServer *physics_2d_server;
 
 	MouseMode mouse_mode;
@@ -206,7 +206,7 @@ public:
 	virtual int get_mouse_button_state() const;
 	virtual void set_window_title(const String &p_title);
 
-	virtual void set_icon(const Image &p_icon);
+	virtual void set_icon(const Ref<Image> &p_icon);
 
 	virtual MainLoop *get_main_loop() const;
 

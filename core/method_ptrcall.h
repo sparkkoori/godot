@@ -103,10 +103,8 @@ MAKE_PTRARG(Rect3);
 MAKE_PTRARG(Basis);
 MAKE_PTRARG(Transform);
 MAKE_PTRARG(Color);
-MAKE_PTRARG(Image);
 MAKE_PTRARG(NodePath);
 MAKE_PTRARG(RID);
-MAKE_PTRARG(InputEvent);
 MAKE_PTRARG(Dictionary);
 MAKE_PTRARG(Array);
 MAKE_PTRARG(PoolByteArray);
@@ -117,7 +115,6 @@ MAKE_PTRARG(PoolVector2Array);
 MAKE_PTRARG(PoolVector3Array);
 MAKE_PTRARG(PoolColorArray);
 MAKE_PTRARG(Variant);
-MAKE_PTRARG(PowerState);
 
 //this is for Object
 

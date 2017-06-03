@@ -387,14 +387,20 @@ GDParser::Node *GDParser::_parse_expression(Node *p_parent, bool p_static, bool 
 				_set_error("Expected '(' after 'preload'");
 				return NULL;
 			}
-			completion_cursor = StringName();
-			completion_type = COMPLETION_PRELOAD;
-			completion_class = current_class;
-			completion_function = current_function;
-			completion_line = tokenizer->get_token_line();
-			completion_block = current_block;
-			completion_found = true;
 			tokenizer->advance();
+
+			if (tokenizer->get_token() == GDTokenizer::TK_CURSOR) {
+				completion_cursor = StringName();
+				completion_node = p_parent;
+				completion_type = COMPLETION_RESOURCE_PATH;
+				completion_class = current_class;
+				completion_function = current_function;
+				completion_line = tokenizer->get_token_line();
+				completion_block = current_block;
+				completion_argument = 0;
+				completion_found = true;
+				tokenizer->advance();
+			}
 
 			String path;
 			bool found_constant = false;
@@ -467,10 +473,10 @@ GDParser::Node *GDParser::_parse_expression(Node *p_parent, bool p_static, bool 
 				_set_error("Expected ')' after 'preload' path");
 				return NULL;
 			}
+			tokenizer->advance();
 
 			ConstantNode *constant = alloc_node<ConstantNode>();
 			constant->value = res;
-			tokenizer->advance();
 
 			expr = constant;
 		} else if (tokenizer->get_token() == GDTokenizer::TK_PR_YIELD) {
@@ -1071,7 +1077,7 @@ GDParser::Node *GDParser::_parse_expression(Node *p_parent, bool p_static, bool 
 			case GDTokenizer::TK_OP_BIT_AND: op = OperatorNode::OP_BIT_AND; break;
 			case GDTokenizer::TK_OP_BIT_OR: op = OperatorNode::OP_BIT_OR; break;
 			case GDTokenizer::TK_OP_BIT_XOR: op = OperatorNode::OP_BIT_XOR; break;
-			case GDTokenizer::TK_PR_EXTENDS: op = OperatorNode::OP_EXTENDS; break;
+			case GDTokenizer::TK_PR_IS: op = OperatorNode::OP_IS; break;
 			case GDTokenizer::TK_CF_IF: op = OperatorNode::OP_TERNARY_IF; break;
 			case GDTokenizer::TK_CF_ELSE: op = OperatorNode::OP_TERNARY_ELSE; break;
 			default: valid = false; break;
@@ -1111,7 +1117,7 @@ GDParser::Node *GDParser::_parse_expression(Node *p_parent, bool p_static, bool 
 
 			switch (expression[i].op) {
 
-				case OperatorNode::OP_EXTENDS:
+				case OperatorNode::OP_IS:
 					priority = -1;
 					break; //before anything
 
@@ -1414,7 +1420,7 @@ GDParser::Node *GDParser::_reduce_expression(Node *p_node, bool p_to_const) {
 				}
 			}
 
-			if (op->op == OperatorNode::OP_EXTENDS) {
+			if (op->op == OperatorNode::OP_IS) {
 				//nothing much
 				return op;
 			}

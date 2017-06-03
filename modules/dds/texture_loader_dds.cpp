@@ -76,8 +76,6 @@ static const DDSFormatInfo dds_format_info[DDS_MAX] = {
 	{ "DXT1", true, false, 4, 8, Image::FORMAT_DXT1 },
 	{ "DXT3", true, false, 4, 16, Image::FORMAT_DXT3 },
 	{ "DXT5", true, false, 4, 16, Image::FORMAT_DXT5 },
-	{ "ATI1", true, false, 4, 8, Image::FORMAT_ATI1 },
-	{ "ATI2", true, false, 4, 16, Image::FORMAT_ATI2 },
 	{ "BGRA8", false, false, 1, 4, Image::FORMAT_RGBA8 },
 	{ "BGR8", false, false, 1, 3, Image::FORMAT_RGB8 },
 	{ "RGBA8", false, false, 1, 4, Image::FORMAT_RGBA8 },
@@ -441,7 +439,7 @@ RES ResourceFormatDDS::load(const String &p_path, const String &p_original_path,
 		wb = PoolVector<uint8_t>::Write();
 	}
 
-	Image img(width, height, mipmaps - 1, info.format, src_data);
+	Ref<Image> img = memnew(Image(width, height, mipmaps - 1, info.format, src_data));
 
 	Ref<ImageTexture> texture = memnew(ImageTexture);
 	texture->create_from_image(img);

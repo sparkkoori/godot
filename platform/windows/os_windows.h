@@ -68,7 +68,7 @@ class OS_Windows : public OS {
 
 	struct KeyEvent {
 
-		InputModifierState mod_state;
+		bool alt, shift, control, meta;
 		UINT uMsg;
 		WPARAM wParam;
 		LPARAM lParam;
@@ -254,7 +254,7 @@ public:
 	virtual String get_clipboard() const;
 
 	void set_cursor_shape(CursorShape p_shape);
-	void set_icon(const Image &p_icon);
+	void set_icon(const Ref<Image> &p_icon);
 
 	virtual String get_executable_path() const;
 

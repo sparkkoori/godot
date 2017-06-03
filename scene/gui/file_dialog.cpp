@@ -61,21 +61,20 @@ void FileDialog::_notification(int p_what) {
 	}
 }
 
-void FileDialog::_unhandled_input(const InputEvent &p_event) {
+void FileDialog::_unhandled_input(const Ref<InputEvent> &p_event) {
 
-	if (p_event.type == InputEvent::KEY && is_window_modal_on_top()) {
+	Ref<InputEventKey> k = p_event;
+	if (k.is_valid() && is_window_modal_on_top()) {
 
-		const InputEventKey &k = p_event.key;
-
-		if (k.pressed) {
+		if (k->is_pressed()) {
 
 			bool handled = true;
 
-			switch (k.scancode) {
+			switch (k->get_scancode()) {
 
 				case KEY_H: {
 
-					if (k.mod.command) {
+					if (k->get_command()) {
 						set_show_hidden_files(!show_hidden_files);
 					} else {
 						handled = false;
@@ -336,8 +335,8 @@ void FileDialog::update_file_list() {
 		dirs.push_back("..");
 	}
 
-	dirs.sort_custom<NoCaseComparator>();
-	files.sort_custom<NoCaseComparator>();
+	dirs.sort_custom<NaturalNoCaseComparator>();
+	files.sort_custom<NaturalNoCaseComparator>();
 
 	while (!dirs.empty()) {
 		String &dir_name = dirs.front()->get();

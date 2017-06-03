@@ -323,7 +323,7 @@ bool CustomPropertyEditor::edit(Object *p_owner, const String &p_name, Variant::
 			c->show();
 
 			checks20gc->set_size(checks20gc->get_minimum_size());
-			set_size(checks20gc->get_position() + checks20gc->get_size() + Vector2(4, 4) * EDSCALE);
+			set_size(checks20gc->get_position() + checks20gc->get_size() + c->get_size() + Vector2(4, 4) * EDSCALE);
 
 		} break;
 		case Variant::INT:
@@ -609,12 +609,9 @@ bool CustomPropertyEditor::edit(Object *p_owner, const String &p_name, Variant::
 						type = Variant::Type(Variant::Type(i));
 					}
 				}
-				InputEvent::Type iet = InputEvent::NONE;
-				if (hint_text.find(".") != -1) {
-					iet = InputEvent::Type(int(hint_text.get_slice(".", 1).to_int()));
-				}
+
 				if (type)
-					property_select->select_property_from_basic_type(type, iet, v);
+					property_select->select_property_from_basic_type(type, v);
 
 				updating = false;
 				return false;
@@ -861,15 +858,7 @@ bool CustomPropertyEditor::edit(Object *p_owner, const String &p_name, Variant::
 			*/
 
 		} break;
-		case Variant::IMAGE: {
 
-			List<String> names;
-			names.push_back(TTR("New"));
-			names.push_back(TTR("Load"));
-			names.push_back(TTR("Clear"));
-			config_action_buttons(names);
-
-		} break;
 		case Variant::NODE_PATH: {
 
 			List<String> names;
@@ -987,9 +976,6 @@ bool CustomPropertyEditor::edit(Object *p_owner, const String &p_name, Variant::
 			return false;
 
 		} break;
-		case Variant::INPUT_EVENT: {
-
-		} break;
 		case Variant::DICTIONARY: {
 
 		} break;
@@ -1058,16 +1044,6 @@ void CustomPropertyEditor::_file_selected(String p_file) {
 				break;
 			}
 			v = res.get_ref_ptr();
-			emit_signal("variant_changed");
-			hide();
-		} break;
-		case Variant::IMAGE: {
-
-			Image image;
-			Error err = ImageLoader::load_image(p_file, &image);
-			ERR_EXPLAIN(TTR("Couldn't load image"));
-			ERR_FAIL_COND(err);
-			v = image;
 			emit_signal("variant_changed");
 			hide();
 		} break;
@@ -1387,36 +1363,7 @@ void CustomPropertyEditor::_action_pressed(int p_which) {
 			}
 
 		} break;
-		case Variant::IMAGE: {
 
-			if (p_which == 0) {
-				//new image too difficult
-				ERR_PRINT("New Image Unimplemented");
-
-			} else if (p_which == 1) {
-
-				file->set_access(EditorFileDialog::ACCESS_RESOURCES);
-				file->set_mode(EditorFileDialog::MODE_OPEN_FILE);
-				List<String> extensions;
-				ImageLoader::get_recognized_extensions(&extensions);
-
-				file->clear_filters();
-
-				for (List<String>::Element *E = extensions.front(); E; E = E->next()) {
-
-					file->add_filter("*." + E->get() + " ; " + E->get().to_upper());
-				}
-
-				file->popup_centered_ratio();
-
-			} else if (p_which == 2) {
-
-				v = Image();
-				emit_signal("variant_changed");
-				hide();
-			}
-
-		} break;
 		default: {};
 	}
 }
@@ -1448,11 +1395,13 @@ void CustomPropertyEditor::_scroll_modified(double p_value) {
 	*/
 }
 
-void CustomPropertyEditor::_drag_easing(const InputEvent &p_ev) {
+void CustomPropertyEditor::_drag_easing(const Ref<InputEvent> &p_ev) {
 
-	if (p_ev.type == InputEvent::MOUSE_MOTION && p_ev.mouse_motion.button_mask & BUTTON_MASK_LEFT) {
+	Ref<InputEventMouseMotion> mm = p_ev;
 
-		float rel = p_ev.mouse_motion.relative_x;
+	if (mm.is_valid() && mm->get_button_mask() & BUTTON_MASK_LEFT) {
+
+		float rel = mm->get_relative().x;
 		if (rel == 0)
 			return;
 
@@ -1481,8 +1430,8 @@ void CustomPropertyEditor::_drag_easing(const InputEvent &p_ev) {
 		//emit_signal("variant_changed");
 		emit_signal("variant_changed");
 	}
-	if (p_ev.type == InputEvent::MOUSE_BUTTON && p_ev.mouse_button.button_index == BUTTON_LEFT) {
-	}
+	//	if (p_ev.type == Ref<InputEvent>::MOUSE_BUTTON && p_ev->get_button_index() == BUTTON_LEFT) {
+	//	}
 }
 
 void CustomPropertyEditor::_draw_easing() {
@@ -1756,16 +1705,11 @@ void CustomPropertyEditor::_modified(String p_string) {
 			emit_signal("variant_changed");
 			*/
 		} break;
-		case Variant::IMAGE: {
 
-		} break;
 		case Variant::NODE_PATH: {
 
 			v = NodePath(value_editor[0]->get_text());
 			emit_signal("variant_changed");
-		} break;
-		case Variant::INPUT_EVENT: {
-
 		} break;
 		case Variant::DICTIONARY: {
 
@@ -2357,15 +2301,6 @@ void PropertyEditor::set_item_text(TreeItem *p_item, int p_type, const String &p
 			//p_item->set_text(1,obj->get(p_name));
 
 		} break;
-		case Variant::IMAGE: {
-
-			Image img = obj->get(p_name);
-			if (img.empty())
-				p_item->set_text(1, "[Image (empty)]");
-			else
-				p_item->set_text(1, "[Image " + itos(img.get_width()) + "x" + itos(img.get_height()) + "-" + String(Image::get_format_name(img.get_format())) + "]");
-
-		} break;
 		case Variant::NODE_PATH: {
 
 			p_item->set_text(1, obj->get(p_name));
@@ -2749,6 +2684,10 @@ void PropertyEditor::_notification(int p_what) {
 		pending.clear();
 
 		changing = false;
+	}
+
+	if (p_what == EditorSettings::NOTIFICATION_EDITOR_SETTINGS_CHANGED) {
+		update_tree();
 	}
 }
 
@@ -3588,19 +3527,7 @@ void PropertyEditor::update_tree() {
 					item->set_icon(0, get_icon("Color", "EditorIcons"));
 
 			} break;
-			case Variant::IMAGE: {
 
-				item->set_cell_mode(1, TreeItem::CELL_MODE_CUSTOM);
-				item->set_editable(1, !read_only);
-				Image img = obj->get(p.name);
-				if (img.empty())
-					item->set_text(1, "[Image (empty)]");
-				else
-					item->set_text(1, "[Image " + itos(img.get_width()) + "x" + itos(img.get_height()) + "-" + String(Image::get_format_name(img.get_format())) + "]");
-				if (show_type_icons)
-					item->set_icon(0, get_icon("Image", "EditorIcons"));
-
-			} break;
 			case Variant::NODE_PATH: {
 
 				item->set_cell_mode(1, TreeItem::CELL_MODE_STRING);
@@ -3922,17 +3849,12 @@ void PropertyEditor::_item_edited() {
 		case Variant::COLOR: {
 			//_edit_set(name,item->get_custom_bg_color(0));
 		} break;
-		case Variant::IMAGE: {
 
-		} break;
 		case Variant::NODE_PATH: {
 			_edit_set(name, NodePath(item->get_text(1)), refresh_all);
 
 		} break;
 
-		case Variant::INPUT_EVENT: {
-
-		} break;
 		case Variant::DICTIONARY: {
 
 		} break;

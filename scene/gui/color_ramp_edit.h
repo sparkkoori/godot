@@ -48,7 +48,7 @@ class ColorRampEdit : public Control {
 
 	bool grabbing;
 	int grabbed;
-	Vector<ColorRamp::Point> points;
+	Vector<Gradient::Point> points;
 
 	void _draw_checker(int x, int y, int w, int h);
 	void _color_changed(const Color &p_color);
@@ -56,7 +56,7 @@ class ColorRampEdit : public Control {
 	void _show_color_picker();
 
 protected:
-	void _gui_input(const InputEvent &p_event);
+	void _gui_input(const Ref<InputEvent> &p_event);
 	void _notification(int p_what);
 	static void _bind_methods();
 
@@ -64,8 +64,8 @@ public:
 	void set_ramp(const Vector<float> &p_offsets, const Vector<Color> &p_colors);
 	Vector<float> get_offsets() const;
 	Vector<Color> get_colors() const;
-	void set_points(Vector<ColorRamp::Point> &p_points);
-	Vector<ColorRamp::Point> &get_points();
+	void set_points(Vector<Gradient::Point> &p_points);
+	Vector<Gradient::Point> &get_points();
 	virtual Size2 get_minimum_size() const;
 
 	ColorRampEdit();

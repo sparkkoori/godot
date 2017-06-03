@@ -37,6 +37,7 @@
 #include "print_string.h"
 #include <stdio.h>
 //#include "servers/spatial_sound_2d_server.h"
+
 #include "io/marshalls.h"
 #include "io/resource_loader.h"
 #include "scene/resources/material.h"
@@ -379,9 +380,9 @@ bool SceneTree::is_input_handled() {
 	return input_handled;
 }
 
-void SceneTree::input_event(const InputEvent &p_event) {
+void SceneTree::input_event(const Ref<InputEvent> &p_event) {
 
-	if (is_editor_hint() && (p_event.type == InputEvent::JOYPAD_MOTION || p_event.type == InputEvent::JOYPAD_BUTTON))
+	if (is_editor_hint() && (p_event->cast_to<InputEventJoypadButton>() || p_event->cast_to<InputEventJoypadMotion>()))
 		return; //avoid joy input on editor
 
 	root_lock++;
@@ -389,8 +390,8 @@ void SceneTree::input_event(const InputEvent &p_event) {
 
 	input_handled = false;
 
-	InputEvent ev = p_event;
-	ev.ID = ++last_id; //this should work better
+	Ref<InputEvent> ev = p_event;
+	ev->set_id(++last_id); //this should work better
 #if 0
 	switch(ev.type) {
 
@@ -398,9 +399,9 @@ void SceneTree::input_event(const InputEvent &p_event) {
 
 			Matrix32 ai = root->get_final_transform().affine_inverse();
 			Vector2 g = ai.xform(Vector2(ev.mouse_button.global_x,ev.mouse_button.global_y));
-			Vector2 l = ai.xform(Vector2(ev.mouse_button.x,ev.mouse_button.y));
-			ev.mouse_button.x=l.x;
-			ev.mouse_button.y=l.y;
+			Vector2 l = ai.xform(Vector2(ev->get_pos().x,ev->get_pos().y));
+			ev->get_pos().x=l.x;
+			ev->get_pos().y=l.y;
 			ev.mouse_button.global_x=g.x;
 			ev.mouse_button.global_y=g.y;
 
@@ -410,13 +411,13 @@ void SceneTree::input_event(const InputEvent &p_event) {
 			Matrix32 ai = root->get_final_transform().affine_inverse();
 			Vector2 g = ai.xform(Vector2(ev.mouse_motion.global_x,ev.mouse_motion.global_y));
 			Vector2 l = ai.xform(Vector2(ev.mouse_motion.x,ev.mouse_motion.y));
-			Vector2 r = ai.xform(Vector2(ev.mouse_motion.relative_x,ev.mouse_motion.relative_y));
+			Vector2 r = ai.xform(Vector2(ev->get_relative().x,ev->get_relative().y));
 			ev.mouse_motion.x=l.x;
 			ev.mouse_motion.y=l.y;
 			ev.mouse_motion.global_x=g.x;
 			ev.mouse_motion.global_y=g.y;
-			ev.mouse_motion.relative_x=r.x;
-			ev.mouse_motion.relative_y=r.y;
+			ev->get_relative().x=r.x;
+			ev->get_relative().y=r.y;
 
 		} break;
 		case InputEvent::SCREEN_TOUCH: {
@@ -453,12 +454,12 @@ void SceneTree::input_event(const InputEvent &p_event) {
 	//call_group(GROUP_CALL_REVERSE|GROUP_CALL_REALTIME|GROUP_CALL_MULIILEVEL,"input","_input",ev);
 
 	/*
-	if (ev.type==InputEvent::KEY && ev.key.pressed && !ev.key.echo && ev.key.scancode==KEY_F12) {
+	if (ev.type==InputEvent::KEY && ev->is_pressed() && !ev->is_echo() && ev->get_scancode()==KEY_F12) {
 
 		print_line("RAM: "+itos(Memory::get_static_mem_usage()));
 		print_line("DRAM: "+itos(Memory::get_dynamic_mem_usage()));
 	}
-	if (ev.type==InputEvent::KEY && ev.key.pressed && !ev.key.echo && ev.key.scancode==KEY_F11) {
+	if (ev.type==InputEvent::KEY && ev->is_pressed() && !ev->is_echo() && ev->get_scancode()==KEY_F11) {
 
 		Memory::dump_static_mem_to_file("memdump.txt");
 	}
@@ -470,9 +471,13 @@ void SceneTree::input_event(const InputEvent &p_event) {
 	call_group_flags(GROUP_CALL_REALTIME, "_viewports", "_vp_input", ev); //special one for GUI, as controls use their own process check
 
 #endif
-	if (ScriptDebugger::get_singleton() && ScriptDebugger::get_singleton()->is_remote() && ev.type == InputEvent::KEY && ev.key.pressed && !ev.key.echo && ev.key.scancode == KEY_F8) {
 
-		ScriptDebugger::get_singleton()->request_quit();
+	if (ScriptDebugger::get_singleton() && ScriptDebugger::get_singleton()->is_remote()) {
+		//quit from game window using F8
+		Ref<InputEventKey> k = ev;
+		if (k.is_valid() && k->is_pressed() && !k->is_echo() && k->get_scancode() == KEY_F8) {
+			ScriptDebugger::get_singleton()->request_quit();
+		}
 	}
 
 	_flush_ugc();
@@ -604,6 +609,30 @@ bool SceneTree::idle(float p_time) {
 	}
 
 	_call_idle_callbacks();
+
+#ifdef TOOLS_ENABLED
+
+	if (is_editor_hint()) {
+		//simple hack to reload fallback environment if it changed from editor
+		String env_path = GlobalConfig::get_singleton()->get("rendering/viewport/default_environment");
+		env_path = env_path.strip_edges(); //user may have added a space or two
+		String cpath;
+		Ref<Environment> fallback = get_root()->get_world()->get_fallback_environment();
+		if (fallback.is_valid()) {
+			cpath = fallback->get_path();
+		}
+		if (cpath != env_path) {
+
+			if (env_path != String()) {
+				fallback = ResourceLoader::load(env_path);
+			} else {
+				fallback.unref();
+			}
+			get_root()->get_world()->set_fallback_environment(fallback);
+		}
+	}
+
+#endif
 
 	return _quit;
 }
@@ -878,7 +907,7 @@ bool SceneTree::is_paused() const {
 	return pause;
 }
 
-void SceneTree::_call_input_pause(const StringName &p_group, const StringName &p_method, const InputEvent &p_input) {
+void SceneTree::_call_input_pause(const StringName &p_group, const StringName &p_method, const Ref<InputEvent> &p_input) {
 
 	Map<StringName, Group>::Element *E = group_map.find(p_group);
 	if (!E)
@@ -2297,7 +2326,9 @@ SceneTree::SceneTree() {
 
 	root = memnew(Viewport);
 	root->set_name("root");
-	root->set_world(Ref<World>(memnew(World)));
+	if (!root->get_world().is_valid())
+		root->set_world(Ref<World>(memnew(World)));
+
 	//root->set_world_2d( Ref<World2D>( memnew( World2D )));
 	root->set_as_audio_listener(true);
 	root->set_as_audio_listener_2d(true);
@@ -2312,6 +2343,37 @@ SceneTree::SceneTree() {
 	root->set_hdr(hdr);
 
 	VS::get_singleton()->scenario_set_reflection_atlas_size(root->get_world()->get_scenario(), ref_atlas_size, ref_atlas_subdiv);
+
+	{ //load default fallback environment
+		//get possible extensions
+		List<String> exts;
+		ResourceLoader::get_recognized_extensions_for_type("Environment", &exts);
+		String ext_hint;
+		for (List<String>::Element *E = exts.front(); E; E = E->next()) {
+			if (ext_hint != String())
+				ext_hint += ",";
+			ext_hint += "*." + E->get();
+		}
+		//get path
+		String env_path = GLOBAL_DEF("rendering/viewport/default_environment", "");
+		//setup property
+		GlobalConfig::get_singleton()->set_custom_property_info("rendering/viewport/default_environment", PropertyInfo(Variant::STRING, "rendering/viewport/default_environment", PROPERTY_HINT_FILE, ext_hint));
+		env_path = env_path.strip_edges();
+		if (env_path != String()) {
+			Ref<Environment> env = ResourceLoader::load(env_path);
+			if (env.is_valid()) {
+				root->get_world()->set_fallback_environment(env);
+			} else {
+				if (is_editor_hint()) {
+					//file was erased, clear the field.
+					GlobalConfig::get_singleton()->set("rendering/viewport/default_environment", "");
+				} else {
+					//file was erased, notify user.
+					ERR_PRINTS(RTR("Default Environment as specified in Project Setings (Rendering -> Viewport -> Default Environment) could not be loaded."));
+				}
+			}
+		}
+	}
 
 	stretch_mode = STRETCH_MODE_DISABLED;
 	stretch_aspect = STRETCH_ASPECT_IGNORE;

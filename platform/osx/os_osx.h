@@ -151,7 +151,7 @@ public:
 
 	virtual Size2 get_window_size() const;
 
-	virtual void set_icon(const Image &p_icon);
+	virtual void set_icon(const Ref<Image> &p_icon);
 
 	virtual MainLoop *get_main_loop() const;
 
@@ -165,7 +165,7 @@ public:
 	virtual void swap_buffers();
 
 	Error shell_open(String p_uri);
-	void push_input(const InputEvent &p_event);
+	void push_input(const Ref<InputEvent> &p_event);
 
 	String get_locale() const;
 

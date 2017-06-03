@@ -51,9 +51,7 @@ class Math {
 public:
 	Math() {} // useless to instance
 
-	enum {
-		RANDOM_MAX = 4294967295L
-	};
+	static const uint64_t RANDOM_MAX = 4294967295;
 
 	static _ALWAYS_INLINE_ double sin(double p_x) { return ::sin(p_x); }
 	static _ALWAYS_INLINE_ float sin(float p_x) { return ::sinf(p_x); }
@@ -276,6 +274,10 @@ public:
 
 		u.u32 = halfbits_to_floatbits(*h);
 		return u.f32;
+	}
+
+	static _ALWAYS_INLINE_ float half_to_float(const uint16_t h) {
+		return halfptr_to_float(&h);
 	}
 
 	static _ALWAYS_INLINE_ uint16_t make_half_float(float f) {

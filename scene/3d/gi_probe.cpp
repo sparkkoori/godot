@@ -881,11 +881,11 @@ void GIProbe::_fixup_plot(int p_idx, int p_level, int p_x, int p_y, int p_z, Bak
 	}
 }
 
-Vector<Color> GIProbe::_get_bake_texture(Image &p_image, const Color &p_color) {
+Vector<Color> GIProbe::_get_bake_texture(Ref<Image> p_image, const Color &p_color) {
 
 	Vector<Color> ret;
 
-	if (p_image.empty()) {
+	if (p_image.is_null() || p_image->empty()) {
 
 		ret.resize(bake_texture_size * bake_texture_size);
 		for (int i = 0; i < bake_texture_size * bake_texture_size; i++) {
@@ -894,23 +894,26 @@ Vector<Color> GIProbe::_get_bake_texture(Image &p_image, const Color &p_color) {
 
 		return ret;
 	}
+	p_image = p_image->duplicate();
 
-	if (p_image.is_compressed()) {
+	if (p_image->is_compressed()) {
 		print_line("DECOMPRESSING!!!!");
-		p_image.decompress();
-	}
-	p_image.convert(Image::FORMAT_RGBA8);
-	p_image.resize(bake_texture_size, bake_texture_size, Image::INTERPOLATE_CUBIC);
 
-	PoolVector<uint8_t>::Read r = p_image.get_data().read();
+		p_image->decompress();
+	}
+	p_image->convert(Image::FORMAT_RGBA8);
+	p_image->resize(bake_texture_size, bake_texture_size, Image::INTERPOLATE_CUBIC);
+
+	PoolVector<uint8_t>::Read r = p_image->get_data().read();
 	ret.resize(bake_texture_size * bake_texture_size);
 
 	for (int i = 0; i < bake_texture_size * bake_texture_size; i++) {
 		Color c;
-		c.r = r[i * 4 + 0] / 255.0;
-		c.g = r[i * 4 + 1] / 255.0;
-		c.b = r[i * 4 + 2] / 255.0;
+		c.r = (r[i * 4 + 0] / 255.0) * p_color.r;
+		c.g = (r[i * 4 + 1] / 255.0) * p_color.g;
+		c.b = (r[i * 4 + 2] / 255.0) * p_color.b;
 		c.a = r[i * 4 + 3] / 255.0;
+
 		ret[i] = c;
 	}
 
@@ -934,7 +937,7 @@ GIProbe::Baker::MaterialCache GIProbe::_get_material_cache(Ref<Material> p_mater
 
 		Ref<Texture> albedo_tex = mat->get_texture(SpatialMaterial::TEXTURE_ALBEDO);
 
-		Image img_albedo;
+		Ref<Image> img_albedo;
 		if (albedo_tex.is_valid()) {
 
 			img_albedo = albedo_tex->get_data();
@@ -950,7 +953,7 @@ GIProbe::Baker::MaterialCache GIProbe::_get_material_cache(Ref<Material> p_mater
 		emission_col.g *= mat->get_emission_energy();
 		emission_col.b *= mat->get_emission_energy();
 
-		Image img_emission;
+		Ref<Image> img_emission;
 
 		if (emission_tex.is_valid()) {
 
@@ -960,7 +963,7 @@ GIProbe::Baker::MaterialCache GIProbe::_get_material_cache(Ref<Material> p_mater
 		mc.emission = _get_bake_texture(img_emission, emission_col);
 
 	} else {
-		Image empty;
+		Ref<Image> empty;
 
 		mc.albedo = _get_bake_texture(empty, Color(0.7, 0.7, 0.7));
 		mc.emission = _get_bake_texture(empty, Color(0, 0, 0));
@@ -1277,6 +1280,7 @@ void GIProbe::_debug_mesh(int p_idx, int p_level, const Rect3 &p_aabb, Ref<Multi
 		xform.basis.scale(p_aabb.size * 0.5);
 		p_multimesh->set_instance_transform(idx, xform);
 		Color col = Color(p_baker->bake_cells[p_idx].albedo[0], p_baker->bake_cells[p_idx].albedo[1], p_baker->bake_cells[p_idx].albedo[2]);
+		//Color col = Color(p_baker->bake_cells[p_idx].emission[0], p_baker->bake_cells[p_idx].emission[1], p_baker->bake_cells[p_idx].emission[2]);
 		p_multimesh->set_instance_color(idx, col);
 
 		idx++;
@@ -1464,7 +1468,7 @@ GIProbe::GIProbe() {
 	subdiv = SUBDIV_128;
 	dynamic_range = 4;
 	energy = 1.0;
-	bias = 0.4;
+	bias = 1.8;
 	propagation = 1.0;
 	extents = Vector3(10, 10, 10);
 	color_scan_cell_width = 4;

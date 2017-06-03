@@ -69,6 +69,7 @@ public:
 
 		bool s3tc_supported;
 		bool latc_supported;
+		bool rgtc_supported;
 		bool bptc_supported;
 		bool etc_supported;
 		bool etc2_supported;
@@ -240,7 +241,7 @@ public:
 
 		RenderTarget *render_target;
 
-		Image images[6];
+		Ref<Image> images[6];
 
 		VisualServer::TextureDetectCallback detect_3d;
 		void *detect_3d_ud;
@@ -280,15 +281,16 @@ public:
 
 	mutable RID_Owner<Texture> texture_owner;
 
-	Image _get_gl_image_and_format(const Image &p_image, Image::Format p_format, uint32_t p_flags, GLenum &r_gl_format, GLenum &r_gl_internal_format, GLenum &r_type, bool &r_compressed, bool &srgb);
+	Ref<Image> _get_gl_image_and_format(const Ref<Image> &p_image, Image::Format p_format, uint32_t p_flags, GLenum &r_gl_format, GLenum &r_gl_internal_format, GLenum &r_type, bool &r_compressed, bool &srgb);
 
 	virtual RID texture_create();
 	virtual void texture_allocate(RID p_texture, int p_width, int p_height, Image::Format p_format, uint32_t p_flags = VS::TEXTURE_FLAGS_DEFAULT);
-	virtual void texture_set_data(RID p_texture, const Image &p_image, VS::CubeMapSide p_cube_side = VS::CUBEMAP_LEFT);
-	virtual Image texture_get_data(RID p_texture, VS::CubeMapSide p_cube_side = VS::CUBEMAP_LEFT) const;
+	virtual void texture_set_data(RID p_texture, const Ref<Image> &p_image, VS::CubeMapSide p_cube_side = VS::CUBEMAP_LEFT);
+	virtual Ref<Image> texture_get_data(RID p_texture, VS::CubeMapSide p_cube_side = VS::CUBEMAP_LEFT) const;
 	virtual void texture_set_flags(RID p_texture, uint32_t p_flags);
 	virtual uint32_t texture_get_flags(RID p_texture) const;
 	virtual Image::Format texture_get_format(RID p_texture) const;
+	virtual uint32_t texture_get_texid(RID p_texture) const;
 	virtual uint32_t texture_get_width(RID p_texture) const;
 	virtual uint32_t texture_get_height(RID p_texture) const;
 	virtual void texture_set_size_override(RID p_texture, int p_width, int p_height);
@@ -307,19 +309,19 @@ public:
 	virtual void texture_set_detect_3d_callback(RID p_texture, VisualServer::TextureDetectCallback p_callback, void *p_userdata);
 	virtual void texture_set_detect_srgb_callback(RID p_texture, VisualServer::TextureDetectCallback p_callback, void *p_userdata);
 
-	/* SKYBOX API */
+	/* SKY API */
 
-	struct SkyBox : public RID_Data {
+	struct Sky : public RID_Data {
 
-		RID cubemap;
+		RID panorama;
 		GLuint radiance;
 		int radiance_size;
 	};
 
-	mutable RID_Owner<SkyBox> skybox_owner;
+	mutable RID_Owner<Sky> sky_owner;
 
-	virtual RID skybox_create();
-	virtual void skybox_set_texture(RID p_skybox, RID p_cube_map, int p_radiance_size);
+	virtual RID sky_create();
+	virtual void sky_set_texture(RID p_sky, RID p_panorama, int p_radiance_size);
 
 	/* SHADER API */
 

@@ -1991,6 +1991,7 @@
 			<argument index="1" name="pos" type="Vector3">
 			</argument>
 			<argument index="2" name="weight_scale" type="float" default="1">
+				Weight scale has to be 1 or larger.
 			</argument>
 			<description>
 			</description>
@@ -15433,6 +15434,10 @@
 		<method name="is_valid" qualifiers="const">
 			<return type="bool">
 			</return>
+			<argument index="0" name="extended_check" type="bool" default="false">
+				If true, also check if the associated script and object still exists.
+				The extended check is done in debug mode as part of [method GDFunctionState.resume], but you can use this if you know you may be trying to resume without knowing for sure the object and/or script have survived up to that point.
+			</argument>
 			<description>
 				Check whether the function call may be resumed. This is not the case if the function state was already resumed.
 			</description>
@@ -20356,7 +20361,7 @@
 		Singleton that manages actions.
 	</brief_description>
 	<description>
-		Singleton that manages actions. InputMap has a list of the actions used in InputEvent, which can be modified.
+		Singleton that manages actions. InputMap has a list of the actions used in Ref<InputEvent>, which can be modified.
 	</description>
 	<methods>
 		<method name="action_add_event">
@@ -27184,7 +27189,7 @@
 			Persisting connections are saved when the object is serialized to file.
 		</constant>
 		<constant name="CONNECT_ONESHOT" value="4">
-			One short connections disconnect themselves after emission.
+			One shot connections disconnect themselves after emission.
 		</constant>
 	</constants>
 </class>
@@ -36778,7 +36783,7 @@
 			<return type="int">
 			</return>
 			<description>
-				Poll the load. If OK is returned, this means poll will have to be called again. If ERR_EOF is returned, them the load has finished and the resource can be obtained by calling [method get_resource].
+				Poll the load. If OK is returned, this means poll will have to be called again. If ERR_FILE_EOF is returned, them the load has finished and the resource can be obtained by calling [method get_resource].
 			</description>
 		</method>
 		<method name="wait">

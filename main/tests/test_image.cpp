@@ -41,7 +41,7 @@ class TestMainLoop : public MainLoop {
 	bool quit;
 
 public:
-	virtual void input_event(const InputEvent &p_event) {
+	virtual void input_event(const Ref<InputEvent> &p_event) {
 	}
 
 	virtual void init() {
@@ -62,11 +62,6 @@ public:
 };
 
 MainLoop *test() {
-
-	Image img;
-	ImageLoader::load_image("as1.png", &img);
-
-	img.resize(512, 512);
 
 	return memnew(TestMainLoop);
 }
