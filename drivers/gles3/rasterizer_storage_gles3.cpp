@@ -1463,6 +1463,7 @@ void RasterizerStorageGLES3::_update_shader(Shader *p_shader) const {
 			p_shader->spatial.unshaded = false;
 			p_shader->spatial.ontop = false;
 			p_shader->spatial.uses_sss = false;
+			p_shader->spatial.uses_screen_texture = false;
 			p_shader->spatial.uses_vertex = false;
 			p_shader->spatial.writes_modelview_or_projection = false;
 
@@ -1488,6 +1489,7 @@ void RasterizerStorageGLES3::_update_shader(Shader *p_shader) const {
 
 			shaders.actions_scene.usage_flag_pointers["SSS_STRENGTH"] = &p_shader->spatial.uses_sss;
 			shaders.actions_scene.usage_flag_pointers["DISCARD"] = &p_shader->spatial.uses_discard;
+			shaders.actions_scene.usage_flag_pointers["SCREEN_TEXTURE"] = &p_shader->spatial.uses_screen_texture;
 
 			shaders.actions_scene.write_flag_pointers["MODELVIEW_MATRIX"] = &p_shader->spatial.writes_modelview_or_projection;
 			shaders.actions_scene.write_flag_pointers["PROJECTION_MATRIX"] = &p_shader->spatial.writes_modelview_or_projection;
@@ -1961,8 +1963,8 @@ _FORCE_INLINE_ static void _fill_std140_variant_ubo_value(ShaderLanguage::DataTy
 			} else if (value.get_type() == Variant::RECT2) {
 				Rect2 v = value;
 
-				gui[0] = v.pos.x;
-				gui[1] = v.pos.y;
+				gui[0] = v.position.x;
+				gui[1] = v.position.y;
 				gui[2] = v.size.x;
 				gui[3] = v.size.y;
 			} else if (value.get_type() == Variant::QUAT) {
@@ -5452,7 +5454,7 @@ void RasterizerStorageGLES3::_render_target_clear(RenderTarget *rt) {
 		glDeleteRenderbuffers(1, &rt->buffers.diffuse);
 		glDeleteRenderbuffers(1, &rt->buffers.specular);
 		glDeleteRenderbuffers(1, &rt->buffers.normal_rough);
-		glDeleteRenderbuffers(1, &rt->buffers.motion_sss);
+		glDeleteRenderbuffers(1, &rt->buffers.sss);
 		glDeleteFramebuffers(1, &rt->buffers.effect_fbo);
 		glDeleteTextures(1, &rt->buffers.effect);
 
@@ -5641,15 +5643,15 @@ void RasterizerStorageGLES3::_render_target_allocate(RenderTarget *rt) {
 
 		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_RENDERBUFFER, rt->buffers.normal_rough);
 
-		glGenRenderbuffers(1, &rt->buffers.motion_sss);
-		glBindRenderbuffer(GL_RENDERBUFFER, rt->buffers.motion_sss);
+		glGenRenderbuffers(1, &rt->buffers.sss);
+		glBindRenderbuffer(GL_RENDERBUFFER, rt->buffers.sss);
 
 		if (msaa == 0)
-			glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, rt->width, rt->height);
+			glRenderbufferStorage(GL_RENDERBUFFER, GL_R8, rt->width, rt->height);
 		else
-			glRenderbufferStorageMultisample(GL_RENDERBUFFER, msaa, GL_RGBA8, rt->width, rt->height);
+			glRenderbufferStorageMultisample(GL_RENDERBUFFER, msaa, GL_R8, rt->width, rt->height);
 
-		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT3, GL_RENDERBUFFER, rt->buffers.motion_sss);
+		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT3, GL_RENDERBUFFER, rt->buffers.sss);
 
 		GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
 		glBindFramebuffer(GL_FRAMEBUFFER, RasterizerStorageGLES3::system_fbo);
@@ -5669,8 +5671,8 @@ void RasterizerStorageGLES3::_render_target_allocate(RenderTarget *rt) {
 
 		glGenTextures(1, &rt->buffers.effect);
 		glBindTexture(GL_TEXTURE_2D, rt->buffers.effect);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, rt->width, rt->height, 0,
-				GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+		glTexImage2D(GL_TEXTURE_2D, 0, color_internal_format, rt->width, rt->height, 0,
+				color_format, color_type, NULL);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
