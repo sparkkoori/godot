@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef ANIMATION_EDITOR_H
 #define ANIMATION_EDITOR_H
 
@@ -44,7 +45,6 @@
 #include "property_editor.h"
 #include "scene/animation/animation_cache.h"
 #include "scene/resources/animation.h"
-#include "scene_tree_editor.h"
 #include "scene_tree_editor.h"
 
 class AnimationKeyEdit;
@@ -274,12 +274,12 @@ class AnimationKeyEditor : public VBoxContainer {
 
 	void _track_editor_draw();
 	void _track_editor_gui_input(const Ref<InputEvent> &p_input);
-	void _track_pos_draw();
+	void _track_position_draw();
 
 	void _track_name_changed(const String &p_name);
 	void _track_menu_selected(int p_idx);
 	void _confirm_insert_list();
-	int _confirm_insert(InsertData p_id, int p_at_track = -1);
+	int _confirm_insert(InsertData p_id, int p_last_track = -1);
 	void _query_insert(const InsertData &p_id);
 	void _update_menu();
 	bool insert_queue;

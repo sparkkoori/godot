@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "main/main.h"
 
 #include "os_osx.h"
@@ -35,7 +36,6 @@
 #include <unistd.h>
 
 int main(int argc, char **argv) {
-
 	int first_arg = 1;
 	const char *dbg_arg = "-NSDocumentRevisionsDebugMode";
 	printf("arguments\n");
@@ -74,9 +74,25 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	OS_OSX os;
+#ifdef DEBUG_ENABLED
+	// lets report the path we made current after all that
+	char cwd[4096];
+	getcwd(cwd, 4096);
+	printf("Current path: %s\n", cwd);
+#endif
 
-	Error err = Main::setup(argv[0], argc - first_arg, &argv[first_arg]);
+	OS_OSX os;
+	Error err;
+
+	if (os.open_with_filename != "") {
+		char *argv_c = (char *)malloc(os.open_with_filename.utf8().size());
+		memcpy(argv_c, os.open_with_filename.utf8().get_data(), os.open_with_filename.utf8().size());
+		err = Main::setup(argv[0], 1, &argv_c);
+		free(argv_c);
+	} else {
+		err = Main::setup(argv[0], argc - first_arg, &argv[first_arg]);
+	}
+
 	if (err != OK)
 		return 255;
 
@@ -85,5 +101,5 @@ int main(int argc, char **argv) {
 
 	Main::cleanup();
 
-	return 0;
+	return os.get_exit_code();
 };

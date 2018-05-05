@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef MULTIMESH_H
 #define MULTIMESH_H
 
@@ -36,7 +37,7 @@
 class MultiMesh : public Resource {
 
 	GDCLASS(MultiMesh, Resource);
-	RES_BASE_EXTENSION("mmsh");
+	RES_BASE_EXTENSION("multimesh");
 
 public:
 	enum TransformFormat {
@@ -84,7 +85,7 @@ public:
 	void set_instance_color(int p_instance, const Color &p_color);
 	Color get_instance_color(int p_instance) const;
 
-	virtual Rect3 get_aabb() const;
+	virtual AABB get_aabb() const;
 
 	virtual RID get_rid() const;
 

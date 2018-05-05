@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef PAIR_H
 #define PAIR_H
 
@@ -37,11 +38,21 @@ struct Pair {
 	S second;
 
 	Pair() {}
-	Pair(F p_first, S p_second) {
-		first = p_first;
-		second = p_second;
+	Pair(F p_first, const S &p_second) :
+			first(p_first),
+			second(p_second) {
 	}
 };
+
+template <class F, class S>
+bool operator==(const Pair<F, S> &pair, const Pair<F, S> &other) {
+	return (pair.first == other.first) && (pair.second == other.second);
+}
+
+template <class F, class S>
+bool operator!=(const Pair<F, S> &pair, const Pair<F, S> &other) {
+	return (pair.first != other.first) || (pair.second != other.second);
+}
 
 template <class F, class S>
 struct PairSort {

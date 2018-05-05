@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef JOYPAD_UWP_H
 #define JOYPAD_UWP_H
 
@@ -62,11 +63,17 @@ private:
 		int id;
 		bool connected;
 		ControllerType type;
+		float ff_timestamp;
+		float ff_end_timestamp;
+		bool vibrating;
 
 		ControllerDevice() {
 			id = -1;
 			connected = false;
 			type = ControllerType::GAMEPAD_CONTROLLER;
+			ff_timestamp = 0.0f;
+			ff_end_timestamp = 0.0f;
+			vibrating = false;
 		}
 	};
 
@@ -78,6 +85,8 @@ private:
 	void OnGamepadRemoved(Platform::Object ^ sender, Windows::Gaming::Input::Gamepad ^ value);
 
 	InputDefault::JoyAxis axis_correct(double p_val, bool p_negate = false, bool p_trigger = false) const;
+	void joypad_vibration_start(int p_device, float p_weak_magnitude, float p_strong_magnitude, float p_duration, uint64_t p_timestamp);
+	void joypad_vibration_stop(int p_device, uint64_t p_timestamp);
 };
 
 #endif

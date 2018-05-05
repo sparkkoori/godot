@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef GLOBALS_LIST_H
 #define GLOBALS_LIST_H
 
@@ -180,7 +181,7 @@ private:
 
 public:
 	/**
-	* return an const iterator to the beginning of the list.
+	* return a const iterator to the beginning of the list.
 	*/
 	_FORCE_INLINE_ const Element *front() const {
 
@@ -195,7 +196,7 @@ public:
 	};
 
 	/**
- 	* return an const iterator to the last member of the list.
+ 	* return a const iterator to the last member of the list.
 	*/
 	_FORCE_INLINE_ const Element *back() const {
 
@@ -291,6 +292,58 @@ public:
 			erase(_data->first);
 	}
 
+	Element *insert_after(Element *p_element, const T &p_value) {
+		CRASH_COND(p_element && (!_data || p_element->data != _data));
+
+		if (!p_element) {
+			return push_back(p_value);
+		}
+
+		Element *n = memnew_allocator(Element, A);
+		n->value = (T &)p_value;
+		n->prev_ptr = p_element;
+		n->next_ptr = p_element->next_ptr;
+		n->data = _data;
+
+		if (!p_element->next_ptr) {
+			_data->last = n;
+		} else {
+			p_element->next_ptr->prev_ptr = n;
+		}
+
+		p_element->next_ptr = n;
+
+		_data->size_cache++;
+
+		return n;
+	}
+
+	Element *insert_before(Element *p_element, const T &p_value) {
+		CRASH_COND(p_element && (!_data || p_element->data != _data));
+
+		if (!p_element) {
+			return push_back(p_value);
+		}
+
+		Element *n = memnew_allocator(Element, A);
+		n->value = (T &)p_value;
+		n->prev_ptr = p_element->prev_ptr;
+		n->next_ptr = p_element;
+		n->data = _data;
+
+		if (!p_element->prev_ptr) {
+			_data->first = n;
+		} else {
+			p_element->prev_ptr->next_ptr = n;
+		}
+
+		p_element->prev_ptr = n;
+
+		_data->size_cache++;
+
+		return n;
+	}
+
 	/**
 	 * find an element in the list,
 	 */
@@ -335,7 +388,7 @@ public:
 	};
 
 	/**
-	 * return wether the list is empty
+	 * return whether the list is empty
 	 */
 	_FORCE_INLINE_ bool empty() const {
 
@@ -398,10 +451,7 @@ public:
 
 	T &operator[](int p_index) {
 
-		if (p_index < 0 || p_index >= size()) {
-			T &aux = *((T *)0); //nullreturn
-			ERR_FAIL_COND_V(p_index < 0 || p_index >= size(), aux);
-		}
+		CRASH_BAD_INDEX(p_index, size());
 
 		Element *I = front();
 		int c = 0;
@@ -415,15 +465,12 @@ public:
 			c++;
 		}
 
-		ERR_FAIL_V(*((T *)0)); // bug!!
+		CRASH_NOW(); // bug!!
 	}
 
 	const T &operator[](int p_index) const {
 
-		if (p_index < 0 || p_index >= size()) {
-			T &aux = *((T *)0); //nullreturn
-			ERR_FAIL_COND_V(p_index < 0 || p_index >= size(), aux);
-		}
+		CRASH_BAD_INDEX(p_index, size());
 
 		const Element *I = front();
 		int c = 0;
@@ -437,7 +484,7 @@ public:
 			c++;
 		}
 
-		ERR_FAIL_V(*((T *)0)); // bug!
+		CRASH_NOW(); // bug!!
 	}
 
 	void move_to_back(Element *p_I) {

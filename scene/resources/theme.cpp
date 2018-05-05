@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "theme.h"
 #include "os/file_access.h"
 #include "print_string.h"
@@ -629,21 +630,21 @@ void Theme::get_type_list(List<StringName> *p_list) const {
 
 void Theme::_bind_methods() {
 
-	ClassDB::bind_method(D_METHOD("set_icon", "name", "type", "texture:Texture"), &Theme::set_icon);
-	ClassDB::bind_method(D_METHOD("get_icon:Texture", "name", "type"), &Theme::get_icon);
+	ClassDB::bind_method(D_METHOD("set_icon", "name", "type", "texture"), &Theme::set_icon);
+	ClassDB::bind_method(D_METHOD("get_icon", "name", "type"), &Theme::get_icon);
 	ClassDB::bind_method(D_METHOD("has_icon", "name", "type"), &Theme::has_icon);
 	ClassDB::bind_method(D_METHOD("clear_icon", "name", "type"), &Theme::clear_icon);
 	ClassDB::bind_method(D_METHOD("get_icon_list", "type"), &Theme::_get_icon_list);
 
-	ClassDB::bind_method(D_METHOD("set_stylebox", "name", "type", "texture:StyleBox"), &Theme::set_stylebox);
-	ClassDB::bind_method(D_METHOD("get_stylebox:StyleBox", "name", "type"), &Theme::get_stylebox);
+	ClassDB::bind_method(D_METHOD("set_stylebox", "name", "type", "texture"), &Theme::set_stylebox);
+	ClassDB::bind_method(D_METHOD("get_stylebox", "name", "type"), &Theme::get_stylebox);
 	ClassDB::bind_method(D_METHOD("has_stylebox", "name", "type"), &Theme::has_stylebox);
 	ClassDB::bind_method(D_METHOD("clear_stylebox", "name", "type"), &Theme::clear_stylebox);
 	ClassDB::bind_method(D_METHOD("get_stylebox_list", "type"), &Theme::_get_stylebox_list);
 	ClassDB::bind_method(D_METHOD("get_stylebox_types"), &Theme::_get_stylebox_types);
 
-	ClassDB::bind_method(D_METHOD("set_font", "name", "type", "font:Font"), &Theme::set_font);
-	ClassDB::bind_method(D_METHOD("get_font:Font", "name", "type"), &Theme::get_font);
+	ClassDB::bind_method(D_METHOD("set_font", "name", "type", "font"), &Theme::set_font);
+	ClassDB::bind_method(D_METHOD("get_font", "name", "type"), &Theme::get_font);
 	ClassDB::bind_method(D_METHOD("has_font", "name", "type"), &Theme::has_font);
 	ClassDB::bind_method(D_METHOD("clear_font", "name", "type"), &Theme::clear_font);
 	ClassDB::bind_method(D_METHOD("get_font_list", "type"), &Theme::_get_font_list);
@@ -883,7 +884,7 @@ RES ResourceFormatLoaderTheme::load(const String &p_path, const String &p_origin
 					ERR_FAIL_V(RES());
 				}
 
-				sbflat->set_border_size(params[0].to_int());
+				sbflat->set_border_width_all(params[0].to_int());
 
 				if (!params[0].is_valid_integer()) {
 
@@ -929,8 +930,8 @@ RES ResourceFormatLoaderTheme::load(const String &p_path, const String &p_origin
 					dark = Color::html(params[3]);
 				}
 
-				sbflat->set_dark_color(dark);
-				sbflat->set_light_color(bright);
+				sbflat->set_border_color_all(bright);
+				//				sbflat->set_dark_color(dark);
 				sbflat->set_bg_color(normal);
 
 				if (params.size() == ccodes + 5) {
@@ -1030,14 +1031,13 @@ RES ResourceFormatLoaderTheme::load(const String &p_path, const String &p_origin
 					ERR_FAIL_V(RES());
 				}
 
-				if (res->cast_to<StyleBox>()) {
-
+				if (Object::cast_to<StyleBox>(*res)) {
 					theme->set_stylebox(item, control, res);
-				} else if (res->cast_to<Font>()) {
+				} else if (Object::cast_to<Font>(*res)) {
 					theme->set_font(item, control, res);
-				} else if (res->cast_to<Font>()) {
+				} else if (Object::cast_to<Font>(*res)) {
 					theme->set_font(item, control, res);
-				} else if (res->cast_to<Texture>()) {
+				} else if (Object::cast_to<Texture>(*res)) {
 					theme->set_icon(item, control, res);
 				} else {
 					memdelete(f);

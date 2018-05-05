@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,7 +27,9 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "shape_2d_sw.h"
+
 #include "geometry.h"
 #include "sort.h"
 
@@ -182,13 +184,18 @@ real_t RayShape2DSW::get_moment_of_inertia(real_t p_mass, const Size2 &p_scale) 
 
 void RayShape2DSW::set_data(const Variant &p_data) {
 
-	length = p_data;
+	Dictionary d = p_data;
+	length = d["length"];
+	slips_on_slope = d["slips_on_slope"];
 	configure(Rect2(0, 0, 0.001, length));
 }
 
 Variant RayShape2DSW::get_data() const {
 
-	return length;
+	Dictionary d;
+	d["length"] = length;
+	d["slips_on_slope"] = slips_on_slope;
+	return d;
 }
 
 /*********************************************************/
@@ -197,7 +204,7 @@ Variant RayShape2DSW::get_data() const {
 
 void SegmentShape2DSW::get_supports(const Vector2 &p_normal, Vector2 *r_supports, int &r_amount) const {
 
-	if (Math::abs(p_normal.dot(n)) > _SEGMENT_IS_VALID_SUPPORT_TRESHOLD) {
+	if (Math::abs(p_normal.dot(n)) > _SEGMENT_IS_VALID_SUPPORT_THRESHOLD) {
 		r_supports[0] = a;
 		r_supports[1] = b;
 		r_amount = 2;
@@ -337,7 +344,7 @@ void RectangleShape2DSW::get_supports(const Vector2 &p_normal, Vector2 *r_suppor
 		Vector2 ag;
 		ag[i] = 1.0;
 		real_t dp = ag.dot(p_normal);
-		if (Math::abs(dp) < _SEGMENT_IS_VALID_SUPPORT_TRESHOLD)
+		if (Math::abs(dp) < _SEGMENT_IS_VALID_SUPPORT_THRESHOLD)
 			continue;
 
 		real_t sgn = dp > 0 ? 1.0 : -1.0;
@@ -400,7 +407,7 @@ void CapsuleShape2DSW::get_supports(const Vector2 &p_normal, Vector2 *r_supports
 
 	real_t d = n.y;
 
-	if (Math::abs(d) < (1.0 - _SEGMENT_IS_VALID_SUPPORT_TRESHOLD)) {
+	if (Math::abs(d) < (1.0 - _SEGMENT_IS_VALID_SUPPORT_THRESHOLD)) {
 
 		// make it flat
 		n.y = 0.0;
@@ -547,7 +554,7 @@ void ConvexPolygonShape2DSW::get_supports(const Vector2 &p_normal, Vector2 *r_su
 		}
 
 		//test segment
-		if (points[i].normal.dot(p_normal) > _SEGMENT_IS_VALID_SUPPORT_TRESHOLD) {
+		if (points[i].normal.dot(p_normal) > _SEGMENT_IS_VALID_SUPPORT_THRESHOLD) {
 
 			r_amount = 2;
 			r_supports[0] = points[i].pos;
@@ -587,7 +594,7 @@ bool ConvexPolygonShape2DSW::intersect_segment(const Vector2 &p_begin, const Vec
 
 	for (int i = 0; i < point_count; i++) {
 
-		//hmm crap.. no can do..
+		//hmm.. no can do..
 		/*
 		if (d.dot(points[i].normal)>=0)
 			continue;

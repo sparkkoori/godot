@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,15 +27,16 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "box_shape.h"
 #include "servers/physics_server.h"
 
 Vector<Vector3> BoxShape::_gen_debug_mesh_lines() {
 
 	Vector<Vector3> lines;
-	Rect3 aabb;
-	aabb.pos = -get_extents();
-	aabb.size = aabb.pos * -2;
+	AABB aabb;
+	aabb.position = -get_extents();
+	aabb.size = aabb.position * -2;
 
 	for (int i = 0; i < 12; i++) {
 		Vector3 a, b;
@@ -73,8 +74,8 @@ void BoxShape::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::VECTOR3, "extents"), "set_extents", "get_extents");
 }
 
-BoxShape::BoxShape()
-	: Shape(PhysicsServer::get_singleton()->shape_create(PhysicsServer::SHAPE_BOX)) {
+BoxShape::BoxShape() :
+		Shape(PhysicsServer::get_singleton()->shape_create(PhysicsServer::SHAPE_BOX)) {
 
 	set_extents(Vector3(1, 1, 1));
 }

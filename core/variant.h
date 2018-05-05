@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef VARIANT_H
 #define VARIANT_H
 
@@ -34,6 +35,7 @@
 	@author Juan Linietsky <reduzio@gmail.com>
 */
 
+#include "aabb.h"
 #include "array.h"
 #include "color.h"
 #include "dictionary.h"
@@ -42,14 +44,11 @@
 #include "io/ip_address.h"
 #include "math_2d.h"
 #include "matrix3.h"
-#include "os/power.h"
-#include "path_db.h"
+#include "node_path.h"
 #include "plane.h"
 #include "quat.h"
-#include "rect3.h"
 #include "ref_ptr.h"
 #include "rid.h"
-#include "simple_type.h"
 #include "transform.h"
 #include "ustring.h"
 #include "vector3.h"
@@ -72,6 +71,7 @@ typedef PoolVector<Color> PoolColorArray;
 
 class Variant {
 public:
+	// If this changes the table in variant_op must be updated
 	enum Type {
 
 		NIL,
@@ -90,7 +90,7 @@ public:
 		TRANSFORM2D,
 		PLANE,
 		QUAT, // 10
-		RECT3,
+		AABB,
 		BASIS,
 		TRANSFORM,
 
@@ -100,15 +100,15 @@ public:
 		_RID,
 		OBJECT,
 		DICTIONARY,
-		ARRAY, // 20
+		ARRAY,
 
 		// arrays
-		POOL_BYTE_ARRAY,
+		POOL_BYTE_ARRAY, // 20
 		POOL_INT_ARRAY,
 		POOL_REAL_ARRAY,
 		POOL_STRING_ARRAY,
-		POOL_VECTOR2_ARRAY, // 25
-		POOL_VECTOR3_ARRAY,
+		POOL_VECTOR2_ARRAY,
+		POOL_VECTOR3_ARRAY, // 25
 		POOL_COLOR_ARRAY,
 
 		VARIANT_MAX
@@ -137,10 +137,9 @@ private:
 		int64_t _int;
 		double _real;
 		Transform2D *_transform2d;
-		Rect3 *_rect3;
+		::AABB *_aabb;
 		Basis *_basis;
 		Transform *_transform;
-		RefPtr *_resource;
 		void *_ptr; //generic pointer
 		uint8_t _mem[sizeof(ObjData) > (sizeof(real_t) * 4) ? sizeof(ObjData) : (sizeof(real_t) * 4)];
 	} _data;
@@ -153,15 +152,6 @@ public:
 	static String get_type_name(Variant::Type p_type);
 	static bool can_convert(Type p_type_from, Type p_type_to);
 	static bool can_convert_strict(Type p_type_from, Type p_type_to);
-
-	template <class T>
-	static Type get_type_for() {
-
-		GetSimpleType<T> t;
-		Variant v(t.type);
-		Type r = v.get_type();
-		return r;
-	}
 
 	bool is_ref() const;
 	_FORCE_INLINE_ bool is_num() const { return type == INT || type == REAL; };
@@ -194,7 +184,7 @@ public:
 	operator Rect2() const;
 	operator Vector3() const;
 	operator Plane() const;
-	operator Rect3() const;
+	operator ::AABB() const;
 	operator Quat() const;
 	operator Basis() const;
 	operator Transform() const;
@@ -263,7 +253,7 @@ public:
 	Variant(const Rect2 &p_rect2);
 	Variant(const Vector3 &p_vector3);
 	Variant(const Plane &p_plane);
-	Variant(const Rect3 &p_aabb);
+	Variant(const ::AABB &p_aabb);
 	Variant(const Quat &p_quat);
 	Variant(const Basis &p_transform);
 	Variant(const Transform2D &p_transform);
@@ -299,9 +289,10 @@ public:
 
 	Variant(const IP_Address &p_address);
 
+	// If this changes the table in variant_op must be updated
 	enum Operator {
 
-		//comparation
+		//comparison
 		OP_EQUAL,
 		OP_NOT_EQUAL,
 		OP_LESS,
@@ -310,7 +301,7 @@ public:
 		OP_GREATER_EQUAL,
 		//mathematic
 		OP_ADD,
-		OP_SUBSTRACT,
+		OP_SUBTRACT,
 		OP_MULTIPLY,
 		OP_DIVIDE,
 		OP_NEGATE,
@@ -346,6 +337,7 @@ public:
 	}
 
 	void zero();
+	Variant duplicate(bool deep = false) const;
 	static void blend(const Variant &a, const Variant &b, float c, Variant &r_dst);
 	static void interpolate(const Variant &a, const Variant &b, float c, Variant &r_dst);
 
@@ -377,6 +369,7 @@ public:
 	static Vector<Variant> get_method_default_arguments(Variant::Type p_type, const StringName &p_method);
 	static Variant::Type get_method_return_type(Variant::Type p_type, const StringName &p_method, bool *r_has_return = NULL);
 	static Vector<StringName> get_method_argument_names(Variant::Type p_type, const StringName &p_method);
+	static bool is_method_const(Variant::Type p_type, const StringName &p_method);
 
 	void set_named(const StringName &p_index, const Variant &p_value, bool *r_valid = NULL);
 	Variant get_named(const StringName &p_index, bool *r_valid = NULL) const;
@@ -399,7 +392,7 @@ public:
 	uint32_t hash() const;
 
 	bool hash_compare(const Variant &p_variant) const;
-	bool booleanize(bool &valid) const;
+	bool booleanize() const;
 
 	void static_assign(const Variant &p_variant);
 	static void get_constructor_list(Variant::Type p_type, List<MethodInfo> *p_list);

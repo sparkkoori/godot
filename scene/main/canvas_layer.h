@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef CANVAS_LAYER_H
 #define CANVAS_LAYER_H
 
@@ -44,7 +45,7 @@ class CanvasLayer : public Node {
 	real_t rot;
 	int layer;
 	Transform2D transform;
-	Ref<World2D> canvas;
+	RID canvas;
 
 	ObjectID custom_viewport_id; // to check validity
 	Viewport *custom_viewport;
@@ -53,10 +54,6 @@ class CanvasLayer : public Node {
 	Viewport *vp;
 
 	int sort_index;
-
-	// Deprecated, should be removed in a future version.
-	void _set_rotationd(real_t p_rotation);
-	real_t _get_rotationd() const;
 
 	void _update_xform();
 	void _update_locrotscale();
@@ -78,13 +75,11 @@ public:
 	void set_rotation(real_t p_radians);
 	real_t get_rotation() const;
 
-	void set_rotationd(real_t p_degrees);
-	real_t get_rotationd() const;
+	void set_rotation_degrees(real_t p_degrees);
+	real_t get_rotation_degrees() const;
 
 	void set_scale(const Size2 &p_scale);
 	Size2 get_scale() const;
-
-	Ref<World2D> get_world_2d() const;
 
 	Size2 get_viewport_size() const;
 
@@ -96,7 +91,10 @@ public:
 	void reset_sort_index();
 	int get_sort_index();
 
+	RID get_canvas() const;
+
 	CanvasLayer();
+	~CanvasLayer();
 };
 
 #endif // CANVAS_LAYER_H

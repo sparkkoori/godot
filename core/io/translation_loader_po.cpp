@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "translation_loader_po.h"
 #include "os/file_access.h"
 #include "translation.h"
@@ -51,6 +52,8 @@ RES TranslationLoaderPO::load_translation(FileAccess *f, Error *r_error, const S
 
 	Ref<Translation> translation = Ref<Translation>(memnew(Translation));
 	int line = 1;
+	bool skip_this = false;
+	bool skip_next = false;
 
 	while (true) {
 
@@ -60,9 +63,10 @@ RES TranslationLoaderPO::load_translation(FileAccess *f, Error *r_error, const S
 
 			if (status == STATUS_READING_STRING) {
 
-				if (msg_id != "")
-					translation->add_message(msg_id, msg_str);
-				else if (config == "")
+				if (msg_id != "") {
+					if (!skip_this)
+						translation->add_message(msg_id, msg_str);
+				} else if (config == "")
 					config = msg_str;
 				break;
 
@@ -85,15 +89,18 @@ RES TranslationLoaderPO::load_translation(FileAccess *f, Error *r_error, const S
 				ERR_FAIL_V(RES());
 			}
 
-			if (msg_id != "")
-				translation->add_message(msg_id, msg_str);
-			else if (config == "")
+			if (msg_id != "") {
+				if (!skip_this)
+					translation->add_message(msg_id, msg_str);
+			} else if (config == "")
 				config = msg_str;
 
 			l = l.substr(5, l.length()).strip_edges();
 			status = STATUS_READING_ID;
 			msg_id = "";
 			msg_str = "";
+			skip_this = skip_next;
+			skip_next = false;
 		}
 
 		if (l.begins_with("msgstr")) {
@@ -110,6 +117,9 @@ RES TranslationLoaderPO::load_translation(FileAccess *f, Error *r_error, const S
 		}
 
 		if (l == "" || l.begins_with("#")) {
+			if (l.find("fuzzy") != -1) {
+				skip_next = true;
+			}
 			line++;
 			continue; //nothing to read or comment
 		}

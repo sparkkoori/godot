@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,12 +27,14 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #pragma once
 
 #include <string>
 
 #include <wrl.h>
 
+// ANGLE doesn't provide a specific lib for GLES3, so we keep using GLES2
 #include "GLES2/gl2.h"
 #include "os_uwp.h"
 
@@ -105,7 +107,6 @@ namespace GodotUWP
 
 		int last_touch_x[32]; // 20 fingers, index 31 reserved for the mouse
 		int last_touch_y[32];
-		int number_of_contacts;
 		Windows::Foundation::Point last_mouse_pos;
 	};
 }

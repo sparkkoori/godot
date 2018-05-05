@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef INPUT_DEFAULT_H
 #define INPUT_DEFAULT_H
 
@@ -51,14 +52,18 @@ class InputDefault : public Input {
 	MainLoop *main_loop;
 
 	struct Action {
-		uint64_t fixed_frame;
+		uint64_t physics_frame;
 		uint64_t idle_frame;
 		bool pressed;
+		float strength;
 	};
 
 	Map<StringName, Action> action_state;
 
-	bool emulate_touch;
+	bool emulate_touch_from_mouse;
+	bool emulate_mouse_from_touch;
+
+	int mouse_from_touch_index;
 
 	struct VibrationInfo {
 		float weak_magnitude;
@@ -95,7 +100,6 @@ class InputDefault : public Input {
 		int hat_current;
 
 		Joypad() {
-
 			for (int i = 0; i < JOY_AXIS_MAX; i++) {
 
 				last_axis[i] = 0.0f;
@@ -108,13 +112,14 @@ class InputDefault : public Input {
 			last_hat = HAT_MASK_CENTER;
 			filter = 0.01f;
 			mapping = -1;
+			hat_current = 0;
 		}
 	};
 
 	SpeedTrack mouse_speed_track;
 	Map<int, Joypad> joy_names;
 	int fallback_mapping;
-	RES custom_cursor;
+	CursorShape default_shape = CURSOR_ARROW;
 
 public:
 	enum HatMask {
@@ -174,6 +179,8 @@ private:
 	void _axis_event(int p_device, int p_axis, float p_value);
 	float _handle_deadzone(int p_device, int p_axis, float p_value);
 
+	void _parse_input_event_impl(const Ref<InputEvent> &p_event, bool p_is_emulated);
+
 public:
 	virtual bool is_key_pressed(int p_scancode) const;
 	virtual bool is_mouse_button_pressed(int p_button) const;
@@ -181,6 +188,7 @@ public:
 	virtual bool is_action_pressed(const StringName &p_action) const;
 	virtual bool is_action_just_pressed(const StringName &p_action) const;
 	virtual bool is_action_just_released(const StringName &p_action) const;
+	virtual float get_action_strength(const StringName &p_action) const;
 
 	virtual float get_joy_axis(int p_device, int p_axis) const;
 	String get_joy_name(int p_idx);
@@ -200,7 +208,7 @@ public:
 	virtual Point2 get_last_mouse_speed() const;
 	virtual int get_mouse_button_mask() const;
 
-	virtual void warp_mouse_pos(const Vector2 &p_to);
+	virtual void warp_mouse_position(const Vector2 &p_to);
 	virtual Point2i warp_mouse_motion(const Ref<InputEventMouseMotion> &p_motion, const Rect2 &p_rect);
 
 	virtual void parse_input_event(const Ref<InputEvent> &p_event);
@@ -214,7 +222,7 @@ public:
 	virtual void start_joy_vibration(int p_device, float p_weak_magnitude, float p_strong_magnitude, float p_duration = 0);
 	virtual void stop_joy_vibration(int p_device);
 
-	void set_main_loop(MainLoop *main_loop);
+	void set_main_loop(MainLoop *p_main_loop);
 	void set_mouse_position(const Point2 &p_posf);
 
 	void action_press(const StringName &p_action);
@@ -222,10 +230,16 @@ public:
 
 	void iteration(float p_step);
 
-	void set_emulate_touch(bool p_emulate);
-	virtual bool is_emulating_touchscreen() const;
+	void set_emulate_touch_from_mouse(bool p_emulate);
+	virtual bool is_emulating_touch_from_mouse() const;
+	void ensure_touch_mouse_raised();
 
-	virtual void set_custom_mouse_cursor(const RES &p_cursor, const Vector2 &p_hotspot = Vector2());
+	void set_emulate_mouse_from_touch(bool p_emulate);
+	virtual bool is_emulating_mouse_from_touch() const;
+
+	virtual CursorShape get_default_cursor_shape();
+	virtual void set_default_cursor_shape(CursorShape p_shape);
+	virtual void set_custom_mouse_cursor(const RES &p_cursor, CursorShape p_shape = Input::CURSOR_ARROW, const Vector2 &p_hotspot = Vector2());
 	virtual void set_mouse_in_window(bool p_in_window);
 
 	void parse_mapping(String p_mapping);

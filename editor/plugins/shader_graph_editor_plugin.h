@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,8 +27,13 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef SHADER_GRAPH_EDITOR_PLUGIN_H
 #define SHADER_GRAPH_EDITOR_PLUGIN_H
+
+// FIXME: Godot 3.0 broke compatibility with ShaderGraphEditorPlugin,
+// it needs to be ported to the new shader language.
+#if 0
 
 #include "editor/editor_node.h"
 #include "editor/editor_plugin.h"
@@ -39,11 +44,11 @@
 #include "scene/gui/tree.h"
 #include "scene/resources/shader.h"
 #include "scene/resources/shader_graph.h"
+
 /**
 	@author Juan Linietsky <reduzio@gmail.com>
 */
 
-#if 0
 class GraphColorRampEdit : public Control {
 
 	GDCLASS(GraphColorRampEdit,Control);
@@ -238,5 +243,6 @@ public:
 	~ShaderGraphEditorPlugin();
 
 };
+
 #endif
-#endif
+#endif // SHADER_GRAPH_EDITOR_PLUGIN_H

@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef FILE_ACCESS_H
 #define FILE_ACCESS_H
 
@@ -88,9 +89,12 @@ public:
 	virtual void close() = 0; ///< close a file
 	virtual bool is_open() const = 0; ///< true when file is open
 
+	virtual String get_path() const { return ""; } /// returns the path for the current open file
+	virtual String get_path_absolute() const { return ""; } /// returns the absolute path for the current open file
+
 	virtual void seek(size_t p_position) = 0; ///< seek to a given position
 	virtual void seek_end(int64_t p_position = 0) = 0; ///< seek from the end of file
-	virtual size_t get_pos() const = 0; ///< get position in the file
+	virtual size_t get_position() const = 0; ///< get position in the file
 	virtual size_t get_len() const = 0; ///< get size of the file
 
 	virtual bool eof_reached() const = 0; ///< reading passed EOF
@@ -119,6 +123,7 @@ public:
 
 	virtual Error get_error() const = 0; ///< get last error
 
+	virtual void flush() = 0;
 	virtual void store_8(uint8_t p_dest) = 0; ///< store a byte
 	virtual void store_16(uint16_t p_dest); ///< store 16 bits uint
 	virtual void store_32(uint32_t p_dest); ///< store 32 bits uint
@@ -129,7 +134,7 @@ public:
 	virtual void store_real(real_t p_real);
 
 	virtual void store_string(const String &p_string);
-	virtual void store_line(const String &p_string);
+	virtual void store_line(const String &p_line);
 
 	virtual void store_pascal_string(const String &p_string);
 	virtual String get_pascal_string();
@@ -139,6 +144,8 @@ public:
 	virtual bool file_exists(const String &p_name) = 0; ///< return true if a file exists
 
 	virtual Error reopen(const String &p_path, int p_mode_flags); ///< does not change the AccessType
+
+	virtual Error _chmod(const String &p_path, int p_mod) { return ERR_UNAVAILABLE; }
 
 	static FileAccess *create(AccessType p_access); /// Create a file access (for the current platform) this is the only portable way of accessing files.
 	static FileAccess *create_for_path(const String &p_path);
@@ -152,6 +159,7 @@ public:
 
 	static String get_md5(const String &p_file);
 	static String get_sha256(const String &p_file);
+	static String get_multiple_md5(const Vector<String> &p_file);
 
 	static Vector<uint8_t> get_file_as_array(const String &p_path);
 
@@ -174,6 +182,7 @@ struct FileAccessRef {
 
 	operator bool() const { return f != NULL; }
 	FileAccess *f;
+	operator FileAccess *() { return f; }
 	FileAccessRef(FileAccess *fa) { f = fa; }
 	~FileAccessRef() {
 		if (f) memdelete(f);

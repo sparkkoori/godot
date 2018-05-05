@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "tcp_server_posix.h"
 #include "stream_peer_tcp_posix.h"
 
@@ -69,7 +70,7 @@ void TCPServerPosix::make_default() {
 	TCP_Server::_create = TCPServerPosix::_create;
 };
 
-Error TCPServerPosix::listen(uint16_t p_port, const IP_Address p_bind_address) {
+Error TCPServerPosix::listen(uint16_t p_port, const IP_Address &p_bind_address) {
 
 	ERR_FAIL_COND_V(listen_sockfd != -1, ERR_ALREADY_IN_USE);
 	ERR_FAIL_COND_V(!p_bind_address.is_valid() && !p_bind_address.is_wildcard(), ERR_INVALID_PARAMETER);
@@ -90,10 +91,14 @@ Error TCPServerPosix::listen(uint16_t p_port, const IP_Address p_bind_address) {
 	ERR_FAIL_COND_V(sockfd == -1, FAILED);
 
 #ifndef NO_FCNTL
-	fcntl(sockfd, F_SETFL, O_NONBLOCK);
+	if (fcntl(sockfd, F_SETFL, O_NONBLOCK) < 0) {
+		WARN_PRINT("Error setting socket as non blocking");
+	}
 #else
 	int bval = 1;
-	ioctl(sockfd, FIONBIO, &bval);
+	if (ioctl(sockfd, FIONBIO, &bval) < 0) {
+		WARN_PRINT("Error setting socket as non blocking");
+	}
 #endif
 
 	int reuse = 1;
@@ -112,6 +117,7 @@ Error TCPServerPosix::listen(uint16_t p_port, const IP_Address p_bind_address) {
 			ERR_FAIL_V(FAILED);
 		};
 	} else {
+		close(sockfd);
 		return ERR_ALREADY_IN_USE;
 	};
 
@@ -156,16 +162,20 @@ Ref<StreamPeerTCP> TCPServerPosix::take_connection() {
 	int fd = accept(listen_sockfd, (struct sockaddr *)&their_addr, &size);
 	ERR_FAIL_COND_V(fd == -1, Ref<StreamPeerTCP>());
 #ifndef NO_FCNTL
-	fcntl(fd, F_SETFL, O_NONBLOCK);
+	if (fcntl(fd, F_SETFL, O_NONBLOCK) < 0) {
+		WARN_PRINT("Error setting socket as non blocking");
+	}
 #else
 	int bval = 1;
-	ioctl(fd, FIONBIO, &bval);
+	if (ioctl(fd, FIONBIO, &bval) < 0) {
+		WARN_PRINT("Error setting socket as non blocking");
+	}
 #endif
 
 	Ref<StreamPeerTCPPosix> conn = memnew(StreamPeerTCPPosix);
 	IP_Address ip;
 
-	int port;
+	int port = 0;
 	_set_ip_addr_port(ip, port, &their_addr);
 
 	conn->set_socket(fd, ip, port, sock_type);

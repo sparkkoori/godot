@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,16 +27,17 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "broad_phase_octree.h"
 #include "collision_object_sw.h"
 
 BroadPhaseSW::ID BroadPhaseOctree::create(CollisionObjectSW *p_object, int p_subindex) {
 
-	ID oid = octree.create(p_object, Rect3(), p_subindex, false, 1 << p_object->get_type(), 0);
+	ID oid = octree.create(p_object, AABB(), p_subindex, false, 1 << p_object->get_type(), 0);
 	return oid;
 }
 
-void BroadPhaseOctree::move(ID p_id, const Rect3 &p_aabb) {
+void BroadPhaseOctree::move(ID p_id, const AABB &p_aabb) {
 
 	octree.move(p_id, p_aabb);
 }
@@ -66,14 +67,19 @@ int BroadPhaseOctree::get_subindex(ID p_id) const {
 	return octree.get_subindex(p_id);
 }
 
+int BroadPhaseOctree::cull_point(const Vector3 &p_point, CollisionObjectSW **p_results, int p_max_results, int *p_result_indices) {
+
+	return octree.cull_point(p_point, p_results, p_max_results, p_result_indices);
+}
+
 int BroadPhaseOctree::cull_segment(const Vector3 &p_from, const Vector3 &p_to, CollisionObjectSW **p_results, int p_max_results, int *p_result_indices) {
 
 	return octree.cull_segment(p_from, p_to, p_results, p_max_results, p_result_indices);
 }
 
-int BroadPhaseOctree::cull_aabb(const Rect3 &p_aabb, CollisionObjectSW **p_results, int p_max_results, int *p_result_indices) {
+int BroadPhaseOctree::cull_aabb(const AABB &p_aabb, CollisionObjectSW **p_results, int p_max_results, int *p_result_indices) {
 
-	return octree.cull_AABB(p_aabb, p_results, p_max_results, p_result_indices);
+	return octree.cull_aabb(p_aabb, p_results, p_max_results, p_result_indices);
 }
 
 void *BroadPhaseOctree::_pair_callback(void *self, OctreeElementID p_A, CollisionObjectSW *p_object_A, int subindex_A, OctreeElementID p_B, CollisionObjectSW *p_object_B, int subindex_B) {
@@ -119,6 +125,5 @@ BroadPhaseOctree::BroadPhaseOctree() {
 	octree.set_unpair_callback(_unpair_callback, this);
 	pair_callback = NULL;
 	pair_userdata = NULL;
-	pair_callback = NULL;
 	unpair_userdata = NULL;
 }

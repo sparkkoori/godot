@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "back_buffer_copy.h"
 
 void BackBufferCopy::_update_copy_mode() {
@@ -49,9 +50,13 @@ void BackBufferCopy::_update_copy_mode() {
 	}
 }
 
-Rect2 BackBufferCopy::get_item_rect() const {
+Rect2 BackBufferCopy::_edit_get_rect() const {
 
 	return rect;
+}
+
+bool BackBufferCopy::_edit_use_rect() const {
+	return true;
 }
 
 void BackBufferCopy::set_rect(const Rect2 &p_rect) {
@@ -85,9 +90,9 @@ void BackBufferCopy::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "copy_mode", PROPERTY_HINT_ENUM, "Disabled,Rect,Viewport"), "set_copy_mode", "get_copy_mode");
 	ADD_PROPERTY(PropertyInfo(Variant::RECT2, "rect"), "set_rect", "get_rect");
 
-	BIND_CONSTANT(COPY_MODE_DISABLED);
-	BIND_CONSTANT(COPY_MODE_RECT);
-	BIND_CONSTANT(COPY_MODE_VIEWPORT);
+	BIND_ENUM_CONSTANT(COPY_MODE_DISABLED);
+	BIND_ENUM_CONSTANT(COPY_MODE_RECT);
+	BIND_ENUM_CONSTANT(COPY_MODE_VIEWPORT);
 }
 
 BackBufferCopy::BackBufferCopy() {

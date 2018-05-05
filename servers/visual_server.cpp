@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,9 +27,11 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "visual_server.h"
-#include "global_config.h"
-#include "method_bind_ext.inc"
+
+#include "method_bind_ext.gen.inc"
+#include "project_settings.h"
 
 VisualServer *VisualServer::singleton = NULL;
 VisualServer *(*VisualServer::create_func)() = NULL;
@@ -37,25 +39,6 @@ VisualServer *(*VisualServer::create_func)() = NULL;
 VisualServer *VisualServer::get_singleton() {
 
 	return singleton;
-}
-
-PoolVector<String> VisualServer::_shader_get_param_list(RID p_shader) const {
-
-	//remove at some point
-
-	PoolVector<String> pl;
-
-#if 0
-	List<StringName> params;
-	shader_get_param_list(p_shader,&params);
-
-
-	for(List<StringName>::Element *E=params.front();E;E=E->next()) {
-
-		pl.push_back(E->get());
-	}
-#endif
-	return pl;
 }
 
 VisualServer *VisualServer::create() {
@@ -78,6 +61,65 @@ RID VisualServer::texture_create_from_image(const Ref<Image> &p_image, uint32_t 
 	texture_set_data(texture, p_image);
 
 	return texture;
+}
+
+Array VisualServer::_texture_debug_usage_bind() {
+
+	List<TextureInfo> list;
+	texture_debug_usage(&list);
+	Array arr;
+	for (const List<TextureInfo>::Element *E = list.front(); E; E = E->next()) {
+
+		Dictionary dict;
+		dict["texture"] = E->get().texture;
+		dict["size"] = E->get().size;
+		dict["format"] = E->get().format;
+		dict["bytes"] = E->get().bytes;
+		dict["path"] = E->get().path;
+		arr.push_back(dict);
+	}
+	return arr;
+}
+
+Array VisualServer::_shader_get_param_list_bind(RID p_shader) const {
+
+	List<PropertyInfo> l;
+	shader_get_param_list(p_shader, &l);
+	return convert_property_list(&l);
+}
+
+static Array to_array(const Vector<ObjectID> &ids) {
+	Array a;
+	a.resize(ids.size());
+	for (int i = 0; i < ids.size(); ++i) {
+		a[i] = ids[i];
+	}
+	return a;
+}
+
+Array VisualServer::_instances_cull_aabb_bind(const AABB &p_aabb, RID p_scenario) const {
+
+	Vector<ObjectID> ids = instances_cull_aabb(p_aabb, p_scenario);
+	return to_array(ids);
+}
+
+Array VisualServer::_instances_cull_ray_bind(const Vector3 &p_from, const Vector3 &p_to, RID p_scenario) const {
+
+	Vector<ObjectID> ids = instances_cull_ray(p_from, p_to, p_scenario);
+	return to_array(ids);
+}
+
+Array VisualServer::_instances_cull_convex_bind(const Array &p_convex, RID p_scenario) const {
+
+	Vector<Plane> planes;
+	for (int i = 0; i < p_convex.size(); ++i) {
+		Variant v = p_convex[i];
+		ERR_FAIL_COND_V(v.get_type() != Variant::PLANE, Array());
+		planes.push_back(v);
+	}
+
+	Vector<ObjectID> ids = instances_cull_convex(planes, p_scenario);
+	return to_array(ids);
 }
 
 RID VisualServer::get_test_texture() {
@@ -136,11 +178,6 @@ void VisualServer::_free_internal_rids() {
 		free(white_texture);
 	if (test_material.is_valid())
 		free(test_material);
-
-	for (int i = 0; i < 16; i++) {
-		if (material_2d[i].is_valid())
-			free(material_2d[i]);
-	}
 }
 
 RID VisualServer::_make_test_cube() {
@@ -177,9 +214,9 @@ RID VisualServer::_make_test_cube() {
 			for (int k = 0; k < 3; k++) {
 
 				if (i < 3)
-					face_points[j][(i + k) % 3] = v[k] * (i >= 3 ? -1 : 1);
+					face_points[j][(i + k) % 3] = v[k];
 				else
-					face_points[3 - j][(i + k) % 3] = v[k] * (i >= 3 ? -1 : 1);
+					face_points[3 - j][(i + k) % 3] = -v[k];
 			}
 			normal_points[j] = Vector3();
 			normal_points[j][i % 3] = (i >= 3 ? -1 : 1);
@@ -284,35 +321,6 @@ RID VisualServer::make_sphere_mesh(int p_lats, int p_lons, float p_radius) {
 	return mesh;
 }
 
-RID VisualServer::material_2d_get(bool p_shaded, bool p_transparent, bool p_cut_alpha, bool p_opaque_prepass) {
-
-	int version = 0;
-	if (p_shaded)
-		version = 1;
-	if (p_transparent)
-		version |= 2;
-	if (p_cut_alpha)
-		version |= 4;
-	if (p_opaque_prepass)
-		version |= 8;
-	if (material_2d[version].is_valid())
-		return material_2d[version];
-
-	//not valid, make
-
-	/*	material_2d[version]=fixed_material_create();
-	fixed_material_set_flag(material_2d[version],FIXED_MATERIAL_FLAG_USE_ALPHA,p_transparent);
-	fixed_material_set_flag(material_2d[version],FIXED_MATERIAL_FLAG_USE_COLOR_ARRAY,true);
-	fixed_material_set_flag(material_2d[version],FIXED_MATERIAL_FLAG_DISCARD_ALPHA,p_cut_alpha);
-	material_set_flag(material_2d[version],MATERIAL_FLAG_UNSHADED,!p_shaded);
-	material_set_flag(material_2d[version],MATERIAL_FLAG_DOUBLE_SIDED,true);
-	material_set_depth_draw_mode(material_2d[version],p_opaque_prepass?MATERIAL_DEPTH_DRAW_OPAQUE_PRE_PASS_ALPHA:MATERIAL_DEPTH_DRAW_OPAQUE_ONLY);
-	fixed_material_set_texture(material_2d[version],FIXED_MATERIAL_PARAM_DIFFUSE,get_white_texture());
-	//material cut alpha?*/
-
-	return material_2d[version];
-}
-
 RID VisualServer::get_white_texture() {
 
 	if (white_texture.is_valid())
@@ -332,14 +340,15 @@ RID VisualServer::get_white_texture() {
 	return white_texture;
 }
 
-Error VisualServer::_surface_set_data(Array p_arrays, uint32_t p_format, uint32_t *p_offsets, uint32_t p_stride, PoolVector<uint8_t> &r_vertex_array, int p_vertex_array_len, PoolVector<uint8_t> &r_index_array, int p_index_array_len, Rect3 &r_aabb, Vector<Rect3> r_bone_aabb) {
+#define SMALL_VEC2 Vector2(0.00001, 0.00001)
+#define SMALL_VEC3 Vector3(0.00001, 0.00001, 0.00001)
+
+Error VisualServer::_surface_set_data(Array p_arrays, uint32_t p_format, uint32_t *p_offsets, uint32_t p_stride, PoolVector<uint8_t> &r_vertex_array, int p_vertex_array_len, PoolVector<uint8_t> &r_index_array, int p_index_array_len, AABB &r_aabb, Vector<AABB> r_bone_aabb) {
 
 	PoolVector<uint8_t>::Write vw = r_vertex_array.write();
 
 	PoolVector<uint8_t>::Write iw;
 	if (r_index_array.size()) {
-		print_line("elements: " + itos(r_index_array.size()));
-
 		iw = r_index_array.write();
 	}
 
@@ -375,7 +384,7 @@ Error VisualServer::_surface_set_data(Array p_arrays, uint32_t p_format, uint32_
 
 							if (i == 0) {
 
-								aabb = Rect2(src[i], Vector2());
+								aabb = Rect2(src[i], SMALL_VEC2); //must have a bit of size
 							} else {
 
 								aabb.expand_to(src[i]);
@@ -391,7 +400,7 @@ Error VisualServer::_surface_set_data(Array p_arrays, uint32_t p_format, uint32_
 
 							if (i == 0) {
 
-								aabb = Rect2(src[i], Vector2());
+								aabb = Rect2(src[i], SMALL_VEC2); //must have a bit of size
 							} else {
 
 								aabb.expand_to(src[i]);
@@ -399,7 +408,7 @@ Error VisualServer::_surface_set_data(Array p_arrays, uint32_t p_format, uint32_
 						}
 					}
 
-					r_aabb = Rect3(Vector3(aabb.position.x, aabb.position.y, 0), Vector3(aabb.size.x, aabb.size.y, 0));
+					r_aabb = AABB(Vector3(aabb.position.x, aabb.position.y, 0), Vector3(aabb.size.x, aabb.size.y, 0));
 
 				} else {
 					PoolVector<Vector3> array = p_arrays[ai];
@@ -409,7 +418,7 @@ Error VisualServer::_surface_set_data(Array p_arrays, uint32_t p_format, uint32_
 					const Vector3 *src = read.ptr();
 
 					// setting vertices means regenerating the AABB
-					Rect3 aabb;
+					AABB aabb;
 
 					if (p_format & ARRAY_COMPRESS_VERTEX) {
 
@@ -421,7 +430,7 @@ Error VisualServer::_surface_set_data(Array p_arrays, uint32_t p_format, uint32_
 
 							if (i == 0) {
 
-								aabb = Rect3(src[i], Vector3());
+								aabb = AABB(src[i], SMALL_VEC3);
 							} else {
 
 								aabb.expand_to(src[i]);
@@ -437,7 +446,7 @@ Error VisualServer::_surface_set_data(Array p_arrays, uint32_t p_format, uint32_
 
 							if (i == 0) {
 
-								aabb = Rect3(src[i], Vector3());
+								aabb = AABB(src[i], SMALL_VEC3);
 							} else {
 
 								aabb.expand_to(src[i]);
@@ -465,10 +474,10 @@ Error VisualServer::_surface_set_data(Array p_arrays, uint32_t p_format, uint32_
 
 					for (int i = 0; i < p_vertex_array_len; i++) {
 
-						uint8_t vector[4] = {
-							CLAMP(src[i].x * 127, -128, 127),
-							CLAMP(src[i].y * 127, -128, 127),
-							CLAMP(src[i].z * 127, -128, 127),
+						int8_t vector[4] = {
+							(int8_t)CLAMP(src[i].x * 127, -128, 127),
+							(int8_t)CLAMP(src[i].y * 127, -128, 127),
+							(int8_t)CLAMP(src[i].z * 127, -128, 127),
 							0,
 						};
 
@@ -501,10 +510,10 @@ Error VisualServer::_surface_set_data(Array p_arrays, uint32_t p_format, uint32_
 					for (int i = 0; i < p_vertex_array_len; i++) {
 
 						uint8_t xyzw[4] = {
-							CLAMP(src[i * 4 + 0] * 127, -128, 127),
-							CLAMP(src[i * 4 + 1] * 127, -128, 127),
-							CLAMP(src[i * 4 + 2] * 127, -128, 127),
-							CLAMP(src[i * 4 + 3] * 127, -128, 127)
+							(uint8_t)CLAMP(src[i * 4 + 0] * 127, -128, 127),
+							(uint8_t)CLAMP(src[i * 4 + 1] * 127, -128, 127),
+							(uint8_t)CLAMP(src[i * 4 + 2] * 127, -128, 127),
+							(uint8_t)CLAMP(src[i * 4 + 3] * 127, -128, 127)
 						};
 
 						copymem(&vw[p_offsets[ai] + i * p_stride], xyzw, 4);
@@ -703,7 +712,7 @@ Error VisualServer::_surface_set_data(Array p_arrays, uint32_t p_format, uint32_
 				ERR_FAIL_COND_V(indices.size() == 0, ERR_INVALID_PARAMETER);
 				ERR_FAIL_COND_V(indices.size() != p_index_array_len, ERR_INVALID_PARAMETER);
 
-				/* determine wether using 16 or 32 bits indices */
+				/* determine whether using 16 or 32 bits indices */
 
 				PoolVector<int>::Read read = indices.read();
 				const int *src = read.ptr();
@@ -737,7 +746,7 @@ Error VisualServer::_surface_set_data(Array p_arrays, uint32_t p_format, uint32_
 
 		if (first) {
 			for (int i = 0; i < total_bones; i++) {
-				r_bone_aabb[i].size == Vector3(-1, -1, -1); //negative means unused
+				r_bone_aabb[i].size = Vector3(-1, -1, -1); //negative means unused
 			}
 		}
 
@@ -754,7 +763,7 @@ Error VisualServer::_surface_set_data(Array p_arrays, uint32_t p_format, uint32_
 			PoolVector<int>::Read rb = bones.read();
 			PoolVector<float>::Read rw = weights.read();
 
-			Rect3 *bptr = r_bone_aabb.ptr();
+			AABB *bptr = r_bone_aabb.ptrw();
 
 			for (int i = 0; i < vs; i++) {
 
@@ -769,8 +778,7 @@ Error VisualServer::_surface_set_data(Array p_arrays, uint32_t p_format, uint32_
 
 					if (bptr->size.x < 0) {
 						//first
-						bptr[idx] = Rect3();
-						bptr[idx].pos = v;
+						bptr[idx] = AABB(v, SMALL_VEC3);
 						any_valid = true;
 					} else {
 						bptr[idx].expand_to(v);
@@ -969,7 +977,7 @@ void VisualServer::mesh_add_surface_from_arrays(RID p_mesh, PrimitiveType p_prim
 					ERR_PRINT("index_array_len==NO_INDEX_ARRAY");
 					break;
 				}
-				/* determine wether using 16 or 32 bits indices */
+				/* determine whether using 16 or 32 bits indices */
 				if (array_len >= (1 << 16)) {
 
 					elem_size = 4;
@@ -1002,8 +1010,8 @@ void VisualServer::mesh_add_surface_from_arrays(RID p_mesh, PrimitiveType p_prim
 	PoolVector<uint8_t> index_array;
 	index_array.resize(index_array_size);
 
-	Rect3 aabb;
-	Vector<Rect3> bone_aabb;
+	AABB aabb;
+	Vector<AABB> bone_aabb;
 
 	Error err = _surface_set_data(p_arrays, format, offsets, total_elem_size, vertex_array, array_len, index_array, index_array_len, aabb, bone_aabb);
 
@@ -1020,7 +1028,7 @@ void VisualServer::mesh_add_surface_from_arrays(RID p_mesh, PrimitiveType p_prim
 		vertex_array_shape.resize(array_size);
 		PoolVector<uint8_t> noindex;
 
-		Rect3 laabb;
+		AABB laabb;
 		Error err = _surface_set_data(p_blend_shapes[i], format & ~ARRAY_FORMAT_INDEX, offsets, total_elem_size, vertex_array_shape, array_len, noindex, 0, laabb, bone_aabb);
 		aabb.merge_with(laabb);
 		if (err) {
@@ -1137,7 +1145,7 @@ Array VisualServer::_get_array_from_surface(uint32_t p_format, PoolVector<uint8_
 					ERR_PRINT("index_array_len==NO_INDEX_ARRAY");
 					break;
 				}
-				/* determine wether using 16 or 32 bits indices */
+				/* determine whether using 16 or 32 bits indices */
 				if (p_vertex_len >= (1 << 16)) {
 
 					elem_size = 4;
@@ -1233,11 +1241,12 @@ Array VisualServer::_get_array_from_surface(uint32_t p_format, PoolVector<uint8_
 				if (p_format & ARRAY_COMPRESS_NORMAL) {
 
 					PoolVector<Vector3>::Write w = arr.write();
+					const float multiplier = 1.f / 127.f;
 
 					for (int j = 0; j < p_vertex_len; j++) {
 
-						const uint8_t *v = (const uint8_t *)&r[j * total_elem_size + offsets[i]];
-						w[j] = Vector3(float(v[0] / 255.0) * 2.0 - 1.0, float(v[1] / 255.0) * 2.0 - 1.0, float(v[2] / 255.0) * 2.0 - 1.0);
+						const int8_t *v = (const int8_t *)&r[j * total_elem_size + offsets[i]];
+						w[j] = Vector3(float(v[0]) * multiplier, float(v[1]) * multiplier, float(v[2]) * multiplier);
 					}
 				} else {
 					PoolVector<Vector3>::Write w = arr.write();
@@ -1261,9 +1270,9 @@ Array VisualServer::_get_array_from_surface(uint32_t p_format, PoolVector<uint8_
 
 					for (int j = 0; j < p_vertex_len; j++) {
 
-						const uint8_t *v = (const uint8_t *)&r[j * total_elem_size + offsets[i]];
+						const int8_t *v = (const int8_t *)&r[j * total_elem_size + offsets[i]];
 						for (int k = 0; k < 4; k++) {
-							w[j * 4 + k] = float(v[k] / 255.0) * 2.0 - 1.0;
+							w[j * 4 + k] = float(v[k] / 127.0);
 						}
 					}
 				} else {
@@ -1293,7 +1302,7 @@ Array VisualServer::_get_array_from_surface(uint32_t p_format, PoolVector<uint8_
 					for (int j = 0; j < p_vertex_len; j++) {
 
 						const uint8_t *v = (const uint8_t *)&r[j * total_elem_size + offsets[i]];
-						w[j] = Color(float(v[0] / 255.0) * 2.0 - 1.0, float(v[1] / 255.0) * 2.0 - 1.0, float(v[2] / 255.0) * 2.0 - 1.0, float(v[3] / 255.0) * 2.0 - 1.0);
+						w[j] = Color(float(v[0] / 255.0), float(v[1] / 255.0), float(v[2] / 255.0), float(v[3] / 255.0));
 					}
 				} else {
 					PoolVector<Color>::Write w = arr.write();
@@ -1373,7 +1382,7 @@ Array VisualServer::_get_array_from_surface(uint32_t p_format, PoolVector<uint8_
 
 						const uint16_t *v = (const uint16_t *)&r[j * total_elem_size + offsets[i]];
 						for (int k = 0; k < 4; k++) {
-							w[j * 4 + k] = float(v[k] / 65535.0) * 2.0 - 1.0;
+							w[j * 4 + k] = float(v[k] / 65535.0);
 						}
 					}
 				} else {
@@ -1422,7 +1431,7 @@ Array VisualServer::_get_array_from_surface(uint32_t p_format, PoolVector<uint8_
 
 			} break;
 			case VS::ARRAY_INDEX: {
-				/* determine wether using 16 or 32 bits indices */
+				/* determine whether using 16 or 32 bits indices */
 
 				PoolVector<uint8_t>::Read ir = p_index_data.read();
 
@@ -1471,19 +1480,669 @@ Array VisualServer::mesh_surface_get_arrays(RID p_mesh, int p_surface) const {
 	return _get_array_from_surface(format, vertex_data, vertex_len, index_data, index_len);
 }
 
+Array VisualServer::mesh_surface_get_blend_shape_arrays(RID p_mesh, int p_surface) const {
+
+	Vector<PoolVector<uint8_t> > blend_shape_data = mesh_surface_get_blend_shapes(p_mesh, p_surface);
+	if (blend_shape_data.size() > 0) {
+		int vertex_len = mesh_surface_get_array_len(p_mesh, p_surface);
+
+		PoolVector<uint8_t> index_data = mesh_surface_get_index_array(p_mesh, p_surface);
+		int index_len = mesh_surface_get_array_index_len(p_mesh, p_surface);
+
+		uint32_t format = mesh_surface_get_format(p_mesh, p_surface);
+
+		Array blend_shape_array;
+		blend_shape_array.resize(blend_shape_data.size());
+		for (int i = 0; i < blend_shape_data.size(); i++) {
+			blend_shape_array.set(i, _get_array_from_surface(format, blend_shape_data[i], vertex_len, index_data, index_len));
+		}
+
+		return blend_shape_array;
+	} else {
+		return Array();
+	}
+}
+
+Array VisualServer::_mesh_surface_get_skeleton_aabb_bind(RID p_mesh, int p_surface) const {
+
+	Vector<AABB> vec = VS::get_singleton()->mesh_surface_get_skeleton_aabb(p_mesh, p_surface);
+	Array arr;
+	for (int i = 0; i < vec.size(); i++) {
+		arr[i] = vec[i];
+	}
+	return arr;
+}
+
 void VisualServer::_bind_methods() {
 
-	ClassDB::bind_method(D_METHOD("texture_create"), &VisualServer::texture_create);
-	ClassDB::bind_method(D_METHOD("texture_create_from_image"), &VisualServer::texture_create_from_image, DEFVAL(TEXTURE_FLAGS_DEFAULT));
-	//ClassDB::bind_method(D_METHOD("texture_allocate"),&VisualServer::texture_allocate,DEFVAL( TEXTURE_FLAGS_DEFAULT ) );
-	//ClassDB::bind_method(D_METHOD("texture_set_data"),&VisualServer::texture_blit_rect,DEFVAL( CUBEMAP_LEFT ) );
-	//ClassDB::bind_method(D_METHOD("texture_get_rect"),&VisualServer::texture_get_rect );
-	ClassDB::bind_method(D_METHOD("texture_set_flags"), &VisualServer::texture_set_flags);
-	ClassDB::bind_method(D_METHOD("texture_get_flags"), &VisualServer::texture_get_flags);
-	ClassDB::bind_method(D_METHOD("texture_get_width"), &VisualServer::texture_get_width);
-	ClassDB::bind_method(D_METHOD("texture_get_height"), &VisualServer::texture_get_height);
+	ClassDB::bind_method(D_METHOD("force_sync"), &VisualServer::sync);
+	ClassDB::bind_method(D_METHOD("force_draw", "swap_buffers"), &VisualServer::draw, DEFVAL(true));
 
+	// "draw" and "sync" are deprecated duplicates of "force_draw" and "force_sync"
+	// FIXME: Add deprecation messages using GH-4397 once available, and retire
+	// once the warnings have been enabled for a full release cycle
+	ClassDB::bind_method(D_METHOD("sync"), &VisualServer::sync);
+	ClassDB::bind_method(D_METHOD("draw", "swap_buffers"), &VisualServer::draw, DEFVAL(true));
+
+	ClassDB::bind_method(D_METHOD("texture_create"), &VisualServer::texture_create);
+	ClassDB::bind_method(D_METHOD("texture_create_from_image", "image", "flags"), &VisualServer::texture_create_from_image, DEFVAL(TEXTURE_FLAGS_DEFAULT));
+	ClassDB::bind_method(D_METHOD("texture_allocate", "texture", "width", "height", "format", "flags"), &VisualServer::texture_allocate, DEFVAL(TEXTURE_FLAGS_DEFAULT));
+	ClassDB::bind_method(D_METHOD("texture_set_data", "texture", "image", "cube_side"), &VisualServer::texture_set_data, DEFVAL(CUBEMAP_LEFT));
+	ClassDB::bind_method(D_METHOD("texture_get_data", "texture", "cube_side"), &VisualServer::texture_get_data, DEFVAL(CUBEMAP_LEFT));
+	ClassDB::bind_method(D_METHOD("texture_set_flags", "texture", "flags"), &VisualServer::texture_set_flags);
+	ClassDB::bind_method(D_METHOD("texture_get_flags", "texture"), &VisualServer::texture_get_flags);
+	ClassDB::bind_method(D_METHOD("texture_get_format", "texture"), &VisualServer::texture_get_format);
+	ClassDB::bind_method(D_METHOD("texture_get_texid", "texture"), &VisualServer::texture_get_texid);
+	ClassDB::bind_method(D_METHOD("texture_get_width", "texture"), &VisualServer::texture_get_width);
+	ClassDB::bind_method(D_METHOD("texture_get_height", "texture"), &VisualServer::texture_get_height);
+	ClassDB::bind_method(D_METHOD("texture_set_size_override", "texture", "width", "height"), &VisualServer::texture_set_size_override);
+	ClassDB::bind_method(D_METHOD("texture_set_path", "texture", "path"), &VisualServer::texture_set_path);
+	ClassDB::bind_method(D_METHOD("texture_get_path", "texture"), &VisualServer::texture_get_path);
 	ClassDB::bind_method(D_METHOD("texture_set_shrink_all_x2_on_set_data", "shrink"), &VisualServer::texture_set_shrink_all_x2_on_set_data);
+
+	ClassDB::bind_method(D_METHOD("texture_debug_usage"), &VisualServer::_texture_debug_usage_bind);
+	ClassDB::bind_method(D_METHOD("textures_keep_original", "enable"), &VisualServer::textures_keep_original);
+
+	ClassDB::bind_method(D_METHOD("sky_create"), &VisualServer::sky_create);
+	ClassDB::bind_method(D_METHOD("sky_set_texture", "sky", "cube_map", "radiance_size"), &VisualServer::sky_set_texture);
+
+	ClassDB::bind_method(D_METHOD("shader_create"), &VisualServer::shader_create);
+	ClassDB::bind_method(D_METHOD("shader_set_code", "shader", "code"), &VisualServer::shader_set_code);
+	ClassDB::bind_method(D_METHOD("shader_get_code", "shader"), &VisualServer::shader_get_code);
+	ClassDB::bind_method(D_METHOD("shader_get_param_list", "shader"), &VisualServer::_shader_get_param_list_bind);
+	ClassDB::bind_method(D_METHOD("shader_set_default_texture_param", "shader", "name", "texture"), &VisualServer::shader_set_default_texture_param);
+	ClassDB::bind_method(D_METHOD("shader_get_default_texture_param", "shader", "name"), &VisualServer::shader_get_default_texture_param);
+
+	ClassDB::bind_method(D_METHOD("material_create"), &VisualServer::material_create);
+	ClassDB::bind_method(D_METHOD("material_set_shader", "shader_material", "shader"), &VisualServer::material_set_shader);
+	ClassDB::bind_method(D_METHOD("material_get_shader", "shader_material"), &VisualServer::material_get_shader);
+	ClassDB::bind_method(D_METHOD("material_set_param", "material", "parameter", "value"), &VisualServer::material_set_param);
+	ClassDB::bind_method(D_METHOD("material_get_param", "material", "parameter"), &VisualServer::material_get_param);
+	ClassDB::bind_method(D_METHOD("material_set_render_priority", "material", "priority"), &VisualServer::material_set_render_priority);
+	ClassDB::bind_method(D_METHOD("material_set_line_width", "material", "width"), &VisualServer::material_set_line_width);
+	ClassDB::bind_method(D_METHOD("material_set_next_pass", "material", "next_material"), &VisualServer::material_set_next_pass);
+
+	ClassDB::bind_method(D_METHOD("mesh_create"), &VisualServer::mesh_create);
+	ClassDB::bind_method(D_METHOD("mesh_add_surface_from_arrays", "mesh", "primtive", "arrays", "blend_shapes", "compress_format"), &VisualServer::mesh_add_surface_from_arrays, DEFVAL(Array()), DEFVAL(ARRAY_COMPRESS_DEFAULT));
+	ClassDB::bind_method(D_METHOD("mesh_set_blend_shape_count", "mesh", "amount"), &VisualServer::mesh_set_blend_shape_count);
+	ClassDB::bind_method(D_METHOD("mesh_get_blend_shape_count", "mesh"), &VisualServer::mesh_get_blend_shape_count);
+	ClassDB::bind_method(D_METHOD("mesh_set_blend_shape_mode", "mesh", "mode"), &VisualServer::mesh_set_blend_shape_mode);
+	ClassDB::bind_method(D_METHOD("mesh_get_blend_shape_mode", "mesh"), &VisualServer::mesh_get_blend_shape_mode);
+	ClassDB::bind_method(D_METHOD("mesh_surface_set_material", "mesh", "surface", "material"), &VisualServer::mesh_surface_set_material);
+	ClassDB::bind_method(D_METHOD("mesh_surface_get_material", "mesh", "surface"), &VisualServer::mesh_surface_get_material);
+	ClassDB::bind_method(D_METHOD("mesh_surface_get_array_len", "mesh", "surface"), &VisualServer::mesh_surface_get_array_len);
+	ClassDB::bind_method(D_METHOD("mesh_surface_get_array_index_len", "mesh", "surface"), &VisualServer::mesh_surface_get_array_index_len);
+	ClassDB::bind_method(D_METHOD("mesh_surface_get_array", "mesh", "surface"), &VisualServer::mesh_surface_get_array);
+	ClassDB::bind_method(D_METHOD("mesh_surface_get_index_array", "mesh", "surface"), &VisualServer::mesh_surface_get_index_array);
+	ClassDB::bind_method(D_METHOD("mesh_surface_get_arrays", "mesh", "surface"), &VisualServer::mesh_surface_get_arrays);
+	ClassDB::bind_method(D_METHOD("mesh_surface_get_blend_shape_arrays", "mesh", "surface"), &VisualServer::mesh_surface_get_blend_shape_arrays);
+	ClassDB::bind_method(D_METHOD("mesh_surface_get_format", "mesh", "surface"), &VisualServer::mesh_surface_get_format);
+	ClassDB::bind_method(D_METHOD("mesh_surface_get_primitive_type", "mesh", "surface"), &VisualServer::mesh_surface_get_primitive_type);
+	ClassDB::bind_method(D_METHOD("mesh_surface_get_aabb", "mesh", "surface"), &VisualServer::mesh_surface_get_aabb);
+	ClassDB::bind_method(D_METHOD("mesh_surface_get_skeleton_aabb", "mesh", "surface"), &VisualServer::_mesh_surface_get_skeleton_aabb_bind);
+	ClassDB::bind_method(D_METHOD("mesh_remove_surface", "mesh", "index"), &VisualServer::mesh_remove_surface);
+	ClassDB::bind_method(D_METHOD("mesh_get_surface_count", "mesh"), &VisualServer::mesh_get_surface_count);
+	ClassDB::bind_method(D_METHOD("mesh_set_custom_aabb", "mesh", "aabb"), &VisualServer::mesh_set_custom_aabb);
+	ClassDB::bind_method(D_METHOD("mesh_get_custom_aabb", "mesh"), &VisualServer::mesh_get_custom_aabb);
+	ClassDB::bind_method(D_METHOD("mesh_clear", "mesh"), &VisualServer::mesh_clear);
+
+	ClassDB::bind_method(D_METHOD("multimesh_allocate", "multimesh", "instances", "transform_format", "color_format"), &VisualServer::multimesh_allocate);
+	ClassDB::bind_method(D_METHOD("multimesh_get_instance_count", "multimesh"), &VisualServer::multimesh_get_instance_count);
+	ClassDB::bind_method(D_METHOD("multimesh_set_mesh", "multimesh", "mesh"), &VisualServer::multimesh_set_mesh);
+	ClassDB::bind_method(D_METHOD("multimesh_instance_set_transform", "multimesh", "index", "transform"), &VisualServer::multimesh_instance_set_transform);
+	ClassDB::bind_method(D_METHOD("multimesh_instance_set_transform_2d", "multimesh", "index", "transform"), &VisualServer::multimesh_instance_set_transform_2d);
+	ClassDB::bind_method(D_METHOD("multimesh_instance_set_color", "multimesh", "index", "color"), &VisualServer::multimesh_instance_set_color);
+	ClassDB::bind_method(D_METHOD("multimesh_get_mesh", "multimesh"), &VisualServer::multimesh_get_mesh);
+	ClassDB::bind_method(D_METHOD("multimesh_get_aabb", "multimesh"), &VisualServer::multimesh_get_aabb);
+	ClassDB::bind_method(D_METHOD("multimesh_instance_get_transform", "multimesh", "index"), &VisualServer::multimesh_instance_get_transform);
+	ClassDB::bind_method(D_METHOD("multimesh_instance_get_transform_2d", "multimesh", "index"), &VisualServer::multimesh_instance_get_transform_2d);
+	ClassDB::bind_method(D_METHOD("multimesh_instance_get_color", "multimesh", "index"), &VisualServer::multimesh_instance_get_color);
+	ClassDB::bind_method(D_METHOD("multimesh_set_visible_instances", "multimesh", "visible"), &VisualServer::multimesh_set_visible_instances);
+	ClassDB::bind_method(D_METHOD("multimesh_get_visible_instances", "multimesh"), &VisualServer::multimesh_get_visible_instances);
+
+	ClassDB::bind_method(D_METHOD("immediate_create"), &VisualServer::immediate_create);
+	ClassDB::bind_method(D_METHOD("immediate_begin", "immediate", "primitive", "texture"), &VisualServer::immediate_begin, DEFVAL(RID()));
+	ClassDB::bind_method(D_METHOD("immediate_vertex", "immediate", "vertex"), &VisualServer::immediate_vertex);
+	ClassDB::bind_method(D_METHOD("immediate_vertex_2d", "immediate", "vertex"), &VisualServer::immediate_vertex_2d);
+	ClassDB::bind_method(D_METHOD("immediate_normal", "immediate", "normal"), &VisualServer::immediate_normal);
+	ClassDB::bind_method(D_METHOD("immediate_tangent", "immediate", "tangent"), &VisualServer::immediate_tangent);
+	ClassDB::bind_method(D_METHOD("immediate_color", "immediate", "color"), &VisualServer::immediate_color);
+	ClassDB::bind_method(D_METHOD("immediate_uv", "immediate", "tex_uv"), &VisualServer::immediate_uv);
+	ClassDB::bind_method(D_METHOD("immediate_uv2", "immediate", "tex_uv"), &VisualServer::immediate_uv2);
+	ClassDB::bind_method(D_METHOD("immediate_end", "immediate"), &VisualServer::immediate_end);
+	ClassDB::bind_method(D_METHOD("immediate_clear", "immediate"), &VisualServer::immediate_clear);
+	ClassDB::bind_method(D_METHOD("immediate_set_material", "immediate", "material"), &VisualServer::immediate_set_material);
+	ClassDB::bind_method(D_METHOD("immediate_get_material", "immediate"), &VisualServer::immediate_get_material);
+
+	ClassDB::bind_method(D_METHOD("skeleton_create"), &VisualServer::skeleton_create);
+	ClassDB::bind_method(D_METHOD("skeleton_allocate", "skeleton", "bones", "is_2d_skeleton"), &VisualServer::skeleton_allocate, DEFVAL(false));
+	ClassDB::bind_method(D_METHOD("skeleton_get_bone_count", "skeleton"), &VisualServer::skeleton_get_bone_count);
+	ClassDB::bind_method(D_METHOD("skeleton_bone_set_transform", "skeleton", "bone", "transform"), &VisualServer::skeleton_bone_set_transform);
+	ClassDB::bind_method(D_METHOD("skeleton_bone_get_transform", "skeleton", "bone"), &VisualServer::skeleton_bone_get_transform);
+	ClassDB::bind_method(D_METHOD("skeleton_bone_set_transform_2d", "skeleton", "bone", "transform"), &VisualServer::skeleton_bone_set_transform_2d);
+	ClassDB::bind_method(D_METHOD("skeleton_bone_get_transform_2d", "skeleton", "bone"), &VisualServer::skeleton_bone_get_transform_2d);
+
+	ClassDB::bind_method(D_METHOD("directional_light_create"), &VisualServer::directional_light_create);
+	ClassDB::bind_method(D_METHOD("omni_light_create"), &VisualServer::omni_light_create);
+	ClassDB::bind_method(D_METHOD("spot_light_create"), &VisualServer::spot_light_create);
+
+	ClassDB::bind_method(D_METHOD("light_set_color", "light", "color"), &VisualServer::light_set_color);
+	ClassDB::bind_method(D_METHOD("light_set_param", "light", "param", "value"), &VisualServer::light_set_param);
+	ClassDB::bind_method(D_METHOD("light_set_shadow", "light", "enabled"), &VisualServer::light_set_shadow);
+	ClassDB::bind_method(D_METHOD("light_set_shadow_color", "light", "color"), &VisualServer::light_set_shadow_color);
+	ClassDB::bind_method(D_METHOD("light_set_projector", "light", "texture"), &VisualServer::light_set_projector);
+	ClassDB::bind_method(D_METHOD("light_set_negative", "light", "enable"), &VisualServer::light_set_negative);
+	ClassDB::bind_method(D_METHOD("light_set_cull_mask", "light", "mask"), &VisualServer::light_set_cull_mask);
+	ClassDB::bind_method(D_METHOD("light_set_reverse_cull_face_mode", "light", "enabled"), &VisualServer::light_set_reverse_cull_face_mode);
+
+	ClassDB::bind_method(D_METHOD("light_omni_set_shadow_mode", "light", "mode"), &VisualServer::light_omni_set_shadow_mode);
+	ClassDB::bind_method(D_METHOD("light_omni_set_shadow_detail", "light", "detail"), &VisualServer::light_omni_set_shadow_detail);
+
+	ClassDB::bind_method(D_METHOD("light_directional_set_shadow_mode", "light", "mode"), &VisualServer::light_directional_set_shadow_mode);
+	ClassDB::bind_method(D_METHOD("light_directional_set_blend_splits", "light", "enable"), &VisualServer::light_directional_set_blend_splits);
+	ClassDB::bind_method(D_METHOD("light_directional_set_shadow_depth_range_mode", "light", "range_mode"), &VisualServer::light_directional_set_shadow_depth_range_mode);
+
+	ClassDB::bind_method(D_METHOD("reflection_probe_create"), &VisualServer::reflection_probe_create);
+	ClassDB::bind_method(D_METHOD("reflection_probe_set_update_mode", "probe", "mode"), &VisualServer::reflection_probe_set_update_mode);
+	ClassDB::bind_method(D_METHOD("reflection_probe_set_intensity", "probe", "intensity"), &VisualServer::reflection_probe_set_intensity);
+	ClassDB::bind_method(D_METHOD("reflection_probe_set_interior_ambient", "probe", "color"), &VisualServer::reflection_probe_set_interior_ambient);
+	ClassDB::bind_method(D_METHOD("reflection_probe_set_interior_ambient_energy", "probe", "energy"), &VisualServer::reflection_probe_set_interior_ambient_energy);
+	ClassDB::bind_method(D_METHOD("reflection_probe_set_interior_ambient_probe_contribution", "probe", "contrib"), &VisualServer::reflection_probe_set_interior_ambient_probe_contribution);
+	ClassDB::bind_method(D_METHOD("reflection_probe_set_max_distance", "probe", "distance"), &VisualServer::reflection_probe_set_max_distance);
+	ClassDB::bind_method(D_METHOD("reflection_probe_set_extents", "probe", "extents"), &VisualServer::reflection_probe_set_extents);
+	ClassDB::bind_method(D_METHOD("reflection_probe_set_origin_offset", "probe", "offset"), &VisualServer::reflection_probe_set_origin_offset);
+	ClassDB::bind_method(D_METHOD("reflection_probe_set_as_interior", "probe", "enable"), &VisualServer::reflection_probe_set_as_interior);
+	ClassDB::bind_method(D_METHOD("reflection_probe_set_enable_box_projection", "probe", "enable"), &VisualServer::reflection_probe_set_enable_box_projection);
+	ClassDB::bind_method(D_METHOD("reflection_probe_set_enable_shadows", "probe", "enable"), &VisualServer::reflection_probe_set_enable_shadows);
+	ClassDB::bind_method(D_METHOD("reflection_probe_set_cull_mask", "probe", "layers"), &VisualServer::reflection_probe_set_cull_mask);
+
+	ClassDB::bind_method(D_METHOD("gi_probe_create"), &VisualServer::gi_probe_create);
+	ClassDB::bind_method(D_METHOD("gi_probe_set_bounds", "probe", "bounds"), &VisualServer::gi_probe_set_bounds);
+	ClassDB::bind_method(D_METHOD("gi_probe_get_bounds", "probe"), &VisualServer::gi_probe_get_bounds);
+	ClassDB::bind_method(D_METHOD("gi_probe_set_cell_size", "probe", "range"), &VisualServer::gi_probe_set_cell_size);
+	ClassDB::bind_method(D_METHOD("gi_probe_get_cell_size", "probe"), &VisualServer::gi_probe_get_cell_size);
+	ClassDB::bind_method(D_METHOD("gi_probe_set_to_cell_xform", "xform"), &VisualServer::gi_probe_set_to_cell_xform);
+	ClassDB::bind_method(D_METHOD("gi_probe_get_to_cell_xform"), &VisualServer::gi_probe_get_to_cell_xform);
+	ClassDB::bind_method(D_METHOD("gi_probe_set_dynamic_data", "data"), &VisualServer::gi_probe_set_dynamic_data);
+	ClassDB::bind_method(D_METHOD("gi_probe_get_dynamic_data"), &VisualServer::gi_probe_get_dynamic_data);
+	ClassDB::bind_method(D_METHOD("gi_probe_set_dynamic_range", "range"), &VisualServer::gi_probe_set_dynamic_range);
+	ClassDB::bind_method(D_METHOD("gi_probe_get_dynamic_range"), &VisualServer::gi_probe_get_dynamic_range);
+	ClassDB::bind_method(D_METHOD("gi_probe_set_energy", "energy"), &VisualServer::gi_probe_set_energy);
+	ClassDB::bind_method(D_METHOD("gi_probe_get_energy"), &VisualServer::gi_probe_get_energy);
+	ClassDB::bind_method(D_METHOD("gi_probe_set_bias", "bias"), &VisualServer::gi_probe_set_bias);
+	ClassDB::bind_method(D_METHOD("gi_probe_get_bias"), &VisualServer::gi_probe_get_bias);
+	ClassDB::bind_method(D_METHOD("gi_probe_set_normal_bias", "bias"), &VisualServer::gi_probe_set_normal_bias);
+	ClassDB::bind_method(D_METHOD("gi_probe_get_normal_bias"), &VisualServer::gi_probe_get_normal_bias);
+	ClassDB::bind_method(D_METHOD("gi_probe_set_propagation", "propagation"), &VisualServer::gi_probe_set_propagation);
+	ClassDB::bind_method(D_METHOD("gi_probe_get_propagation"), &VisualServer::gi_probe_get_propagation);
+	ClassDB::bind_method(D_METHOD("gi_probe_set_interior", "enable"), &VisualServer::gi_probe_set_interior);
+	ClassDB::bind_method(D_METHOD("gi_probe_is_interior"), &VisualServer::gi_probe_is_interior);
+	ClassDB::bind_method(D_METHOD("gi_probe_set_compress", "enable"), &VisualServer::gi_probe_set_compress);
+	ClassDB::bind_method(D_METHOD("gi_probe_is_compressed"), &VisualServer::gi_probe_is_compressed);
+
+	ClassDB::bind_method(D_METHOD("lightmap_capture_create"), &VisualServer::lightmap_capture_create);
+	ClassDB::bind_method(D_METHOD("lightmap_capture_set_bounds", "capture", "bounds"), &VisualServer::lightmap_capture_set_bounds);
+	ClassDB::bind_method(D_METHOD("lightmap_capture_get_bounds", "capture"), &VisualServer::lightmap_capture_get_bounds);
+	ClassDB::bind_method(D_METHOD("lightmap_capture_set_octree", "capture", "octree"), &VisualServer::lightmap_capture_set_octree);
+	ClassDB::bind_method(D_METHOD("lightmap_capture_set_octree_cell_transform", "capture", "xform"), &VisualServer::lightmap_capture_set_octree_cell_transform);
+	ClassDB::bind_method(D_METHOD("lightmap_capture_get_octree_cell_transform", "capture"), &VisualServer::lightmap_capture_get_octree_cell_transform);
+	ClassDB::bind_method(D_METHOD("lightmap_capture_set_octree_cell_subdiv", "capture", "subdiv"), &VisualServer::lightmap_capture_set_octree_cell_subdiv);
+	ClassDB::bind_method(D_METHOD("lightmap_capture_get_octree_cell_subdiv", "capture"), &VisualServer::lightmap_capture_get_octree_cell_subdiv);
+	ClassDB::bind_method(D_METHOD("lightmap_capture_get_octree", "capture"), &VisualServer::lightmap_capture_get_octree);
+	ClassDB::bind_method(D_METHOD("lightmap_capture_set_energy", "capture", "energy"), &VisualServer::lightmap_capture_set_energy);
+	ClassDB::bind_method(D_METHOD("lightmap_capture_get_energy", "capture"), &VisualServer::lightmap_capture_get_energy);
+
+	ClassDB::bind_method(D_METHOD("particles_create"), &VisualServer::particles_create);
+	ClassDB::bind_method(D_METHOD("particles_set_emitting", "particles", "emitting"), &VisualServer::particles_set_emitting);
+	ClassDB::bind_method(D_METHOD("particles_get_emitting", "particles"), &VisualServer::particles_get_emitting);
+	ClassDB::bind_method(D_METHOD("particles_set_amount", "particles", "amount"), &VisualServer::particles_set_amount);
+	ClassDB::bind_method(D_METHOD("particles_set_lifetime", "particles", "lifetime"), &VisualServer::particles_set_lifetime);
+	ClassDB::bind_method(D_METHOD("particles_set_one_shot", "particles", "one_shot"), &VisualServer::particles_set_one_shot);
+	ClassDB::bind_method(D_METHOD("particles_set_pre_process_time", "particles", "time"), &VisualServer::particles_set_pre_process_time);
+	ClassDB::bind_method(D_METHOD("particles_set_explosiveness_ratio", "particles", "ratio"), &VisualServer::particles_set_explosiveness_ratio);
+	ClassDB::bind_method(D_METHOD("particles_set_randomness_ratio", "particles", "ratio"), &VisualServer::particles_set_randomness_ratio);
+	ClassDB::bind_method(D_METHOD("particles_set_custom_aabb", "particles", "aabb"), &VisualServer::particles_set_custom_aabb);
+	ClassDB::bind_method(D_METHOD("particles_set_speed_scale", "particles", "scale"), &VisualServer::particles_set_speed_scale);
+	ClassDB::bind_method(D_METHOD("particles_set_use_local_coordinates", "particles", "enable"), &VisualServer::particles_set_use_local_coordinates);
+	ClassDB::bind_method(D_METHOD("particles_set_process_material", "particles", "material"), &VisualServer::particles_set_process_material);
+	ClassDB::bind_method(D_METHOD("particles_set_fixed_fps", "particles", "fps"), &VisualServer::particles_set_fixed_fps);
+	ClassDB::bind_method(D_METHOD("particles_set_fractional_delta", "particles", "enable"), &VisualServer::particles_set_fractional_delta);
+	ClassDB::bind_method(D_METHOD("particles_restart", "particles"), &VisualServer::particles_restart);
+	ClassDB::bind_method(D_METHOD("particles_set_draw_order", "particles", "order"), &VisualServer::particles_set_draw_order);
+	ClassDB::bind_method(D_METHOD("particles_set_draw_passes", "particles", "count"), &VisualServer::particles_set_draw_passes);
+	ClassDB::bind_method(D_METHOD("particles_set_draw_pass_mesh", "particles", "pass", "mesh"), &VisualServer::particles_set_draw_pass_mesh);
+	ClassDB::bind_method(D_METHOD("particles_get_current_aabb", "particles"), &VisualServer::particles_get_current_aabb);
+	ClassDB::bind_method(D_METHOD("particles_set_emission_transform", "particles", "transform"), &VisualServer::particles_set_emission_transform);
+
+	ClassDB::bind_method(D_METHOD("camera_create"), &VisualServer::camera_create);
+	ClassDB::bind_method(D_METHOD("camera_set_perspective", "camera", "fovy_degrees", "z_near", "z_far"), &VisualServer::camera_set_perspective);
+	ClassDB::bind_method(D_METHOD("camera_set_orthogonal", "camera", "size", "z_near", "z_far"), &VisualServer::camera_set_orthogonal);
+	ClassDB::bind_method(D_METHOD("camera_set_transform", "camera", "transform"), &VisualServer::camera_set_transform);
+	ClassDB::bind_method(D_METHOD("camera_set_cull_mask", "camera", "layers"), &VisualServer::camera_set_cull_mask);
+	ClassDB::bind_method(D_METHOD("camera_set_environment", "camera", "env"), &VisualServer::camera_set_environment);
+	ClassDB::bind_method(D_METHOD("camera_set_use_vertical_aspect", "camera", "enable"), &VisualServer::camera_set_use_vertical_aspect);
+
+	ClassDB::bind_method(D_METHOD("viewport_create"), &VisualServer::viewport_create);
+	ClassDB::bind_method(D_METHOD("viewport_set_use_arvr", "viewport", "use_arvr"), &VisualServer::viewport_set_use_arvr);
+	ClassDB::bind_method(D_METHOD("viewport_set_size", "viewport", "width", "height"), &VisualServer::viewport_set_size);
+	ClassDB::bind_method(D_METHOD("viewport_set_active", "viewport", "active"), &VisualServer::viewport_set_active);
+	ClassDB::bind_method(D_METHOD("viewport_set_parent_viewport", "viewport", "parent_viewport"), &VisualServer::viewport_set_parent_viewport);
+	ClassDB::bind_method(D_METHOD("viewport_attach_to_screen", "viewport", "rect", "screen"), &VisualServer::viewport_attach_to_screen, DEFVAL(Rect2()), DEFVAL(0));
+	ClassDB::bind_method(D_METHOD("viewport_detach", "viewport"), &VisualServer::viewport_detach);
+	ClassDB::bind_method(D_METHOD("viewport_set_update_mode", "viewport", "update_mode"), &VisualServer::viewport_set_update_mode);
+	ClassDB::bind_method(D_METHOD("viewport_set_vflip", "viewport", "enabled"), &VisualServer::viewport_set_vflip);
+	ClassDB::bind_method(D_METHOD("viewport_set_clear_mode", "viewport", "clear_mode"), &VisualServer::viewport_set_clear_mode);
+	ClassDB::bind_method(D_METHOD("viewport_get_texture", "viewport"), &VisualServer::viewport_get_texture);
+	ClassDB::bind_method(D_METHOD("viewport_set_hide_scenario", "viewport", "hidden"), &VisualServer::viewport_set_hide_scenario);
+	ClassDB::bind_method(D_METHOD("viewport_set_hide_canvas", "viewport", "hidden"), &VisualServer::viewport_set_hide_canvas);
+	ClassDB::bind_method(D_METHOD("viewport_set_disable_environment", "viewport", "disabled"), &VisualServer::viewport_set_disable_environment);
+	ClassDB::bind_method(D_METHOD("viewport_set_disable_3d", "viewport", "disabled"), &VisualServer::viewport_set_disable_3d);
+	ClassDB::bind_method(D_METHOD("viewport_attach_camera", "viewport", "camera"), &VisualServer::viewport_attach_camera);
+	ClassDB::bind_method(D_METHOD("viewport_set_scenario", "viewport", "scenario"), &VisualServer::viewport_set_scenario);
+	ClassDB::bind_method(D_METHOD("viewport_attach_canvas", "viewport", "canvas"), &VisualServer::viewport_attach_canvas);
+	ClassDB::bind_method(D_METHOD("viewport_remove_canvas", "viewport", "canvas"), &VisualServer::viewport_remove_canvas);
+	ClassDB::bind_method(D_METHOD("viewport_set_canvas_transform", "viewport", "canvas", "offset"), &VisualServer::viewport_set_canvas_transform);
+	ClassDB::bind_method(D_METHOD("viewport_set_transparent_background", "viewport", "enabled"), &VisualServer::viewport_set_transparent_background);
+	ClassDB::bind_method(D_METHOD("viewport_set_global_canvas_transform", "viewport", "transform"), &VisualServer::viewport_set_global_canvas_transform);
+	ClassDB::bind_method(D_METHOD("viewport_set_canvas_layer", "viewport", "canvas", "layer"), &VisualServer::viewport_set_canvas_layer);
+	ClassDB::bind_method(D_METHOD("viewport_set_shadow_atlas_size", "viewport", "size"), &VisualServer::viewport_set_shadow_atlas_size);
+	ClassDB::bind_method(D_METHOD("viewport_set_shadow_atlas_quadrant_subdivision", "viewport", "quadrant", "subdivision"), &VisualServer::viewport_set_shadow_atlas_quadrant_subdivision);
+	ClassDB::bind_method(D_METHOD("viewport_set_msaa", "viewport", "msaa"), &VisualServer::viewport_set_msaa);
+	ClassDB::bind_method(D_METHOD("viewport_set_hdr", "viewport", "enabled"), &VisualServer::viewport_set_hdr);
+	ClassDB::bind_method(D_METHOD("viewport_set_usage", "viewport", "usage"), &VisualServer::viewport_set_usage);
+	ClassDB::bind_method(D_METHOD("viewport_get_render_info", "viewport", "info"), &VisualServer::viewport_get_render_info);
+	ClassDB::bind_method(D_METHOD("viewport_set_debug_draw", "viewport", "draw"), &VisualServer::viewport_set_debug_draw);
+
+	ClassDB::bind_method(D_METHOD("environment_create"), &VisualServer::environment_create);
+	ClassDB::bind_method(D_METHOD("environment_set_background", "env", "bg"), &VisualServer::environment_set_background);
+	ClassDB::bind_method(D_METHOD("environment_set_sky", "env", "sky"), &VisualServer::environment_set_sky);
+	ClassDB::bind_method(D_METHOD("environment_set_sky_custom_fov", "env", "scale"), &VisualServer::environment_set_sky_custom_fov);
+	ClassDB::bind_method(D_METHOD("environment_set_bg_color", "env", "color"), &VisualServer::environment_set_bg_color);
+	ClassDB::bind_method(D_METHOD("environment_set_bg_energy", "env", "energy"), &VisualServer::environment_set_bg_energy);
+	ClassDB::bind_method(D_METHOD("environment_set_canvas_max_layer", "env", "max_layer"), &VisualServer::environment_set_canvas_max_layer);
+	ClassDB::bind_method(D_METHOD("environment_set_ambient_light", "env", "color", "energy", "sky_contibution"), &VisualServer::environment_set_ambient_light, DEFVAL(1.0), DEFVAL(0.0));
+	ClassDB::bind_method(D_METHOD("environment_set_dof_blur_near", "env", "enable", "distance", "transition", "far_amount", "quality"), &VisualServer::environment_set_dof_blur_near);
+	ClassDB::bind_method(D_METHOD("environment_set_dof_blur_far", "env", "enable", "distance", "transition", "far_amount", "quality"), &VisualServer::environment_set_dof_blur_far);
+	ClassDB::bind_method(D_METHOD("environment_set_glow", "env", "enable", "level_flags", "intensity", "strength", "bloom_threshold", "blend_mode", "hdr_bleed_threshold", "hdr_bleed_scale", "bicubic_upscale"), &VisualServer::environment_set_glow);
+	ClassDB::bind_method(D_METHOD("environment_set_tonemap", "env", "tone_mapper", "exposure", "white", "auto_exposure", "min_luminance", "max_luminance", "auto_exp_speed", "auto_exp_grey"), &VisualServer::environment_set_tonemap);
+	ClassDB::bind_method(D_METHOD("environment_set_adjustment", "env", "enable", "brightness", "contrast", "saturation", "ramp"), &VisualServer::environment_set_adjustment);
+	ClassDB::bind_method(D_METHOD("environment_set_ssr", "env", "enable", "max_steps", "fade_in", "fade_out", "depth_tolerance", "roughness"), &VisualServer::environment_set_ssr);
+	ClassDB::bind_method(D_METHOD("environment_set_ssao", "env", "enable", "radius", "intensity", "radius2", "intensity2", "bias", "light_affect", "color", "quality", "blur", "bilateral_sharpness"), &VisualServer::environment_set_ssao);
+	ClassDB::bind_method(D_METHOD("environment_set_fog", "env", "enable", "color", "sun_color", "sun_amount"), &VisualServer::environment_set_fog);
+	ClassDB::bind_method(D_METHOD("environment_set_fog_depth", "env", "enable", "depth_begin", "depth_curve", "transmit", "transmit_curve"), &VisualServer::environment_set_fog_depth);
+	ClassDB::bind_method(D_METHOD("environment_set_fog_height", "env", "enable", "min_height", "max_height", "height_curve"), &VisualServer::environment_set_fog_height);
+
+	ClassDB::bind_method(D_METHOD("scenario_create"), &VisualServer::scenario_create);
+	ClassDB::bind_method(D_METHOD("scenario_set_debug", "scenario", "debug_mode"), &VisualServer::scenario_set_debug);
+	ClassDB::bind_method(D_METHOD("scenario_set_environment", "scenario", "environment"), &VisualServer::scenario_set_environment);
+	ClassDB::bind_method(D_METHOD("scenario_set_reflection_atlas_size", "scenario", "p_size", "subdiv"), &VisualServer::scenario_set_reflection_atlas_size);
+	ClassDB::bind_method(D_METHOD("scenario_set_fallback_environment", "scenario", "environment"), &VisualServer::scenario_set_fallback_environment);
+
+	ClassDB::bind_method(D_METHOD("instance_create2", "base", "scenario"), &VisualServer::instance_create2);
+	ClassDB::bind_method(D_METHOD("instance_create"), &VisualServer::instance_create);
+	ClassDB::bind_method(D_METHOD("instance_set_base", "instance", "base"), &VisualServer::instance_set_base);
+	ClassDB::bind_method(D_METHOD("instance_set_scenario", "instance", "scenario"), &VisualServer::instance_set_scenario);
+	ClassDB::bind_method(D_METHOD("instance_set_layer_mask", "instance", "mask"), &VisualServer::instance_set_layer_mask);
+	ClassDB::bind_method(D_METHOD("instance_set_transform", "instance", "transform"), &VisualServer::instance_set_transform);
+	ClassDB::bind_method(D_METHOD("instance_attach_object_instance_id", "instance", "id"), &VisualServer::instance_attach_object_instance_id);
+	ClassDB::bind_method(D_METHOD("instance_set_blend_shape_weight", "instance", "shape", "weight"), &VisualServer::instance_set_blend_shape_weight);
+	ClassDB::bind_method(D_METHOD("instance_set_surface_material", "instance", "surface", "material"), &VisualServer::instance_set_surface_material);
+	ClassDB::bind_method(D_METHOD("instance_set_visible", "instance", "visible"), &VisualServer::instance_set_visible);
+	ClassDB::bind_method(D_METHOD("instance_set_use_lightmap", "instance", "lightmap_instance", "lightmap"), &VisualServer::instance_set_use_lightmap);
+	ClassDB::bind_method(D_METHOD("instance_set_custom_aabb", "instance", "aabb"), &VisualServer::instance_set_custom_aabb);
+	ClassDB::bind_method(D_METHOD("instance_attach_skeleton", "instance", "skeleton"), &VisualServer::instance_attach_skeleton);
+	ClassDB::bind_method(D_METHOD("instance_set_exterior", "instance", "enabled"), &VisualServer::instance_set_exterior);
+	ClassDB::bind_method(D_METHOD("instance_set_extra_visibility_margin", "instance", "margin"), &VisualServer::instance_set_extra_visibility_margin);
+	ClassDB::bind_method(D_METHOD("instance_geometry_set_flag", "instance", "flag", "enabled"), &VisualServer::instance_geometry_set_flag);
+	ClassDB::bind_method(D_METHOD("instance_geometry_set_cast_shadows_setting", "instance", "shadow_casting_setting"), &VisualServer::instance_geometry_set_cast_shadows_setting);
+	ClassDB::bind_method(D_METHOD("instance_geometry_set_material_override", "instance", "material"), &VisualServer::instance_geometry_set_material_override);
+	ClassDB::bind_method(D_METHOD("instance_geometry_set_draw_range", "instance", "min", "max", "min_margin", "max_margin"), &VisualServer::instance_geometry_set_draw_range);
+	ClassDB::bind_method(D_METHOD("instance_geometry_set_as_instance_lod", "instance", "as_lod_of_instance"), &VisualServer::instance_geometry_set_as_instance_lod);
+
+	ClassDB::bind_method(D_METHOD("instances_cull_aabb", "aabb", "scenario"), &VisualServer::_instances_cull_aabb_bind, DEFVAL(RID()));
+	ClassDB::bind_method(D_METHOD("instances_cull_ray", "from", "to", "scenario"), &VisualServer::_instances_cull_ray_bind, DEFVAL(RID()));
+	ClassDB::bind_method(D_METHOD("instances_cull_convex", "convex", "scenario"), &VisualServer::_instances_cull_convex_bind, DEFVAL(RID()));
+
+	ClassDB::bind_method(D_METHOD("canvas_create"), &VisualServer::canvas_create);
+	ClassDB::bind_method(D_METHOD("canvas_set_item_mirroring", "canvas", "item", "mirroring"), &VisualServer::canvas_set_item_mirroring);
+	ClassDB::bind_method(D_METHOD("canvas_set_modulate", "canvas", "color"), &VisualServer::canvas_set_modulate);
+
+	ClassDB::bind_method(D_METHOD("canvas_item_create"), &VisualServer::canvas_item_create);
+	ClassDB::bind_method(D_METHOD("canvas_item_set_parent", "item", "parent"), &VisualServer::canvas_item_set_parent);
+	ClassDB::bind_method(D_METHOD("canvas_item_set_visible", "item", "visible"), &VisualServer::canvas_item_set_visible);
+	ClassDB::bind_method(D_METHOD("canvas_item_set_light_mask", "item", "mask"), &VisualServer::canvas_item_set_light_mask);
+	ClassDB::bind_method(D_METHOD("canvas_item_set_transform", "item", "transform"), &VisualServer::canvas_item_set_transform);
+	ClassDB::bind_method(D_METHOD("canvas_item_set_clip", "item", "clip"), &VisualServer::canvas_item_set_clip);
+	ClassDB::bind_method(D_METHOD("canvas_item_set_distance_field_mode", "item", "enabled"), &VisualServer::canvas_item_set_distance_field_mode);
+	ClassDB::bind_method(D_METHOD("canvas_item_set_custom_rect", "item", "use_custom_rect", "rect"), &VisualServer::canvas_item_set_custom_rect, DEFVAL(Rect2()));
+	ClassDB::bind_method(D_METHOD("canvas_item_set_modulate", "item", "color"), &VisualServer::canvas_item_set_modulate);
+	ClassDB::bind_method(D_METHOD("canvas_item_set_self_modulate", "item", "color"), &VisualServer::canvas_item_set_self_modulate);
+	ClassDB::bind_method(D_METHOD("canvas_item_set_draw_behind_parent", "item", "enabled"), &VisualServer::canvas_item_set_draw_behind_parent);
+	ClassDB::bind_method(D_METHOD("canvas_item_add_line", "item", "from", "to", "color", "width", "antialiased"), &VisualServer::canvas_item_add_line, DEFVAL(1.0), DEFVAL(false));
+	ClassDB::bind_method(D_METHOD("canvas_item_add_polyline", "item", "points", "colors", "width", "antialiased"), &VisualServer::canvas_item_add_polyline, DEFVAL(1.0), DEFVAL(false));
+	ClassDB::bind_method(D_METHOD("canvas_item_add_rect", "item", "rect", "color"), &VisualServer::canvas_item_add_rect);
+	ClassDB::bind_method(D_METHOD("canvas_item_add_circle", "item", "pos", "radius", "color"), &VisualServer::canvas_item_add_circle);
+	ClassDB::bind_method(D_METHOD("canvas_item_add_texture_rect", "item", "rect", "texture", "tile", "modulate", "transpose", "normal_map"), &VisualServer::canvas_item_add_texture_rect, DEFVAL(false), DEFVAL(Color(1, 1, 1)), DEFVAL(false), DEFVAL(RID()));
+	ClassDB::bind_method(D_METHOD("canvas_item_add_texture_rect_region", "item", "rect", "texture", "src_rect", "modulate", "transpose", "normal_map", "clip_uv"), &VisualServer::canvas_item_add_texture_rect_region, DEFVAL(Color(1, 1, 1)), DEFVAL(false), DEFVAL(RID()), DEFVAL(true));
+	ClassDB::bind_method(D_METHOD("canvas_item_add_nine_patch", "item", "rect", "source", "texture", "topleft", "bottomright", "x_axis_mode", "y_axis_mode", "draw_center", "modulate", "normal_map"), &VisualServer::canvas_item_add_nine_patch, DEFVAL(NINE_PATCH_STRETCH), DEFVAL(NINE_PATCH_STRETCH), DEFVAL(true), DEFVAL(Color(1, 1, 1)), DEFVAL(RID()));
+	ClassDB::bind_method(D_METHOD("canvas_item_add_primitive", "item", "points", "colors", "uvs", "texture", "width", "normal_map"), &VisualServer::canvas_item_add_primitive, DEFVAL(1.0), DEFVAL(RID()));
+	ClassDB::bind_method(D_METHOD("canvas_item_add_polygon", "item", "points", "colors", "uvs", "texture", "normal_map", "antialiased"), &VisualServer::canvas_item_add_polygon, DEFVAL(Vector<Point2>()), DEFVAL(RID()), DEFVAL(RID()), DEFVAL(false));
+	ClassDB::bind_method(D_METHOD("canvas_item_add_triangle_array", "item", "indices", "points", "colors", "uvs", "texture", "count", "normal_map"), &VisualServer::canvas_item_add_triangle_array, DEFVAL(Vector<Point2>()), DEFVAL(RID()), DEFVAL(-1), DEFVAL(RID()));
+	ClassDB::bind_method(D_METHOD("canvas_item_add_mesh", "item", "mesh", "texture", "normal_map"), &VisualServer::canvas_item_add_mesh, DEFVAL(RID()));
+	ClassDB::bind_method(D_METHOD("canvas_item_add_multimesh", "item", "mesh", "texture", "normal_map"), &VisualServer::canvas_item_add_multimesh, DEFVAL(RID()));
+	ClassDB::bind_method(D_METHOD("canvas_item_add_particles", "item", "particles", "texture", "normal_map", "h_frames", "v_frames"), &VisualServer::canvas_item_add_particles);
+	ClassDB::bind_method(D_METHOD("canvas_item_add_set_transform", "item", "transform"), &VisualServer::canvas_item_add_set_transform);
+	ClassDB::bind_method(D_METHOD("canvas_item_add_clip_ignore", "item", "ignore"), &VisualServer::canvas_item_add_clip_ignore);
+	ClassDB::bind_method(D_METHOD("canvas_item_set_sort_children_by_y", "item", "enabled"), &VisualServer::canvas_item_set_sort_children_by_y);
+	ClassDB::bind_method(D_METHOD("canvas_item_set_z_index", "item", "z_index"), &VisualServer::canvas_item_set_z_index);
+	ClassDB::bind_method(D_METHOD("canvas_item_set_z_as_relative_to_parent", "item", "enabled"), &VisualServer::canvas_item_set_z_as_relative_to_parent);
+	ClassDB::bind_method(D_METHOD("canvas_item_set_copy_to_backbuffer", "item", "enabled", "rect"), &VisualServer::canvas_item_set_copy_to_backbuffer);
+	ClassDB::bind_method(D_METHOD("canvas_item_clear", "item"), &VisualServer::canvas_item_clear);
+	ClassDB::bind_method(D_METHOD("canvas_item_set_draw_index", "item", "index"), &VisualServer::canvas_item_set_draw_index);
+	ClassDB::bind_method(D_METHOD("canvas_item_set_material", "item", "material"), &VisualServer::canvas_item_set_material);
+	ClassDB::bind_method(D_METHOD("canvas_item_set_use_parent_material", "item", "enabled"), &VisualServer::canvas_item_set_use_parent_material);
+	ClassDB::bind_method(D_METHOD("canvas_light_create"), &VisualServer::canvas_light_create);
+	ClassDB::bind_method(D_METHOD("canvas_light_attach_to_canvas", "light", "canvas"), &VisualServer::canvas_light_attach_to_canvas);
+	ClassDB::bind_method(D_METHOD("canvas_light_set_enabled", "light", "enabled"), &VisualServer::canvas_light_set_enabled);
+	ClassDB::bind_method(D_METHOD("canvas_light_set_scale", "light", "scale"), &VisualServer::canvas_light_set_scale);
+	ClassDB::bind_method(D_METHOD("canvas_light_set_transform", "light", "transform"), &VisualServer::canvas_light_set_transform);
+	ClassDB::bind_method(D_METHOD("canvas_light_set_texture", "light", "texture"), &VisualServer::canvas_light_set_texture);
+	ClassDB::bind_method(D_METHOD("canvas_light_set_texture_offset", "light", "offset"), &VisualServer::canvas_light_set_texture_offset);
+	ClassDB::bind_method(D_METHOD("canvas_light_set_color", "light", "color"), &VisualServer::canvas_light_set_color);
+	ClassDB::bind_method(D_METHOD("canvas_light_set_height", "light", "height"), &VisualServer::canvas_light_set_height);
+	ClassDB::bind_method(D_METHOD("canvas_light_set_energy", "light", "energy"), &VisualServer::canvas_light_set_energy);
+	ClassDB::bind_method(D_METHOD("canvas_light_set_z_range", "light", "min_z", "max_z"), &VisualServer::canvas_light_set_z_range);
+	ClassDB::bind_method(D_METHOD("canvas_light_set_layer_range", "light", "min_layer", "max_layer"), &VisualServer::canvas_light_set_layer_range);
+	ClassDB::bind_method(D_METHOD("canvas_light_set_item_cull_mask", "light", "mask"), &VisualServer::canvas_light_set_item_cull_mask);
+	ClassDB::bind_method(D_METHOD("canvas_light_set_item_shadow_cull_mask", "light", "mask"), &VisualServer::canvas_light_set_item_shadow_cull_mask);
+	ClassDB::bind_method(D_METHOD("canvas_light_set_mode", "light", "mode"), &VisualServer::canvas_light_set_mode);
+	ClassDB::bind_method(D_METHOD("canvas_light_set_shadow_enabled", "light", "enabled"), &VisualServer::canvas_light_set_shadow_enabled);
+	ClassDB::bind_method(D_METHOD("canvas_light_set_shadow_buffer_size", "light", "size"), &VisualServer::canvas_light_set_shadow_buffer_size);
+	ClassDB::bind_method(D_METHOD("canvas_light_set_shadow_gradient_length", "light", "length"), &VisualServer::canvas_light_set_shadow_gradient_length);
+	ClassDB::bind_method(D_METHOD("canvas_light_set_shadow_filter", "light", "filter"), &VisualServer::canvas_light_set_shadow_filter);
+	ClassDB::bind_method(D_METHOD("canvas_light_set_shadow_color", "light", "color"), &VisualServer::canvas_light_set_shadow_color);
+	ClassDB::bind_method(D_METHOD("canvas_light_set_shadow_smooth", "light", "smooth"), &VisualServer::canvas_light_set_shadow_smooth);
+
+	ClassDB::bind_method(D_METHOD("canvas_light_occluder_create"), &VisualServer::canvas_light_occluder_create);
+	ClassDB::bind_method(D_METHOD("canvas_light_occluder_attach_to_canvas", "occluder", "canvas"), &VisualServer::canvas_light_occluder_attach_to_canvas);
+	ClassDB::bind_method(D_METHOD("canvas_light_occluder_set_enabled", "occluder", "enabled"), &VisualServer::canvas_light_occluder_set_enabled);
+	ClassDB::bind_method(D_METHOD("canvas_light_occluder_set_polygon", "occluder", "polygon"), &VisualServer::canvas_light_occluder_set_polygon);
+	ClassDB::bind_method(D_METHOD("canvas_light_occluder_set_transform", "occluder", "transform"), &VisualServer::canvas_light_occluder_set_transform);
+	ClassDB::bind_method(D_METHOD("canvas_light_occluder_set_light_mask", "occluder", "mask"), &VisualServer::canvas_light_occluder_set_light_mask);
+
+	ClassDB::bind_method(D_METHOD("canvas_occluder_polygon_create"), &VisualServer::canvas_occluder_polygon_create);
+	ClassDB::bind_method(D_METHOD("canvas_occluder_polygon_set_shape", "occluder_polygon", "shape", "closed"), &VisualServer::canvas_occluder_polygon_set_shape);
+	ClassDB::bind_method(D_METHOD("canvas_occluder_polygon_set_shape_as_lines", "occluder_polygon", "shape"), &VisualServer::canvas_occluder_polygon_set_shape_as_lines);
+	ClassDB::bind_method(D_METHOD("canvas_occluder_polygon_set_cull_mode", "occluder_polygon", "mode"), &VisualServer::canvas_occluder_polygon_set_cull_mode);
+
+	ClassDB::bind_method(D_METHOD("black_bars_set_margins", "left", "top", "right", "bottom"), &VisualServer::black_bars_set_margins);
+	ClassDB::bind_method(D_METHOD("black_bars_set_images", "left", "top", "right", "bottom"), &VisualServer::black_bars_set_images);
+
+	ClassDB::bind_method(D_METHOD("free_rid", "rid"), &VisualServer::free); // shouldn't conflict with Object::free()
+
+	ClassDB::bind_method(D_METHOD("request_frame_drawn_callback", "where", "method", "userdata"), &VisualServer::request_frame_drawn_callback);
+	ClassDB::bind_method(D_METHOD("has_changed"), &VisualServer::has_changed);
+	ClassDB::bind_method(D_METHOD("init"), &VisualServer::init);
+	ClassDB::bind_method(D_METHOD("finish"), &VisualServer::finish);
+	ClassDB::bind_method(D_METHOD("get_render_info", "info"), &VisualServer::get_render_info);
+
+	ClassDB::bind_method(D_METHOD("get_test_cube"), &VisualServer::get_test_cube);
+	ClassDB::bind_method(D_METHOD("get_test_texture"), &VisualServer::get_test_texture);
+	ClassDB::bind_method(D_METHOD("get_white_texture"), &VisualServer::get_white_texture);
+
+	ClassDB::bind_method(D_METHOD("make_sphere_mesh", "latitudes", "longitudes", "radius"), &VisualServer::make_sphere_mesh);
+
+	ClassDB::bind_method(D_METHOD("set_boot_image", "image", "color", "scale"), &VisualServer::set_boot_image);
+	ClassDB::bind_method(D_METHOD("set_default_clear_color", "color"), &VisualServer::set_default_clear_color);
+
+	ClassDB::bind_method(D_METHOD("has_feature", "feature"), &VisualServer::has_feature);
+	ClassDB::bind_method(D_METHOD("has_os_feature", "feature"), &VisualServer::has_os_feature);
+	ClassDB::bind_method(D_METHOD("set_debug_generate_wireframes", "generate"), &VisualServer::set_debug_generate_wireframes);
+
+	BIND_CONSTANT(NO_INDEX_ARRAY);
+	BIND_CONSTANT(ARRAY_WEIGHTS_SIZE);
+	BIND_CONSTANT(CANVAS_ITEM_Z_MIN);
+	BIND_CONSTANT(CANVAS_ITEM_Z_MAX);
+	BIND_CONSTANT(MAX_GLOW_LEVELS);
+	BIND_CONSTANT(MAX_CURSORS);
+	BIND_CONSTANT(MATERIAL_RENDER_PRIORITY_MIN);
+	BIND_CONSTANT(MATERIAL_RENDER_PRIORITY_MAX);
+
+	BIND_ENUM_CONSTANT(CUBEMAP_LEFT);
+	BIND_ENUM_CONSTANT(CUBEMAP_RIGHT);
+	BIND_ENUM_CONSTANT(CUBEMAP_BOTTOM);
+	BIND_ENUM_CONSTANT(CUBEMAP_TOP);
+	BIND_ENUM_CONSTANT(CUBEMAP_FRONT);
+	BIND_ENUM_CONSTANT(CUBEMAP_BACK);
+
+	BIND_ENUM_CONSTANT(TEXTURE_FLAG_MIPMAPS);
+	BIND_ENUM_CONSTANT(TEXTURE_FLAG_REPEAT);
+	BIND_ENUM_CONSTANT(TEXTURE_FLAG_FILTER);
+	BIND_ENUM_CONSTANT(TEXTURE_FLAG_ANISOTROPIC_FILTER);
+	BIND_ENUM_CONSTANT(TEXTURE_FLAG_CONVERT_TO_LINEAR);
+	BIND_ENUM_CONSTANT(TEXTURE_FLAG_MIRRORED_REPEAT);
+	BIND_ENUM_CONSTANT(TEXTURE_FLAG_CUBEMAP);
+	BIND_ENUM_CONSTANT(TEXTURE_FLAG_USED_FOR_STREAMING);
+	BIND_ENUM_CONSTANT(TEXTURE_FLAGS_DEFAULT);
+
+	BIND_ENUM_CONSTANT(SHADER_SPATIAL);
+	BIND_ENUM_CONSTANT(SHADER_CANVAS_ITEM);
+	BIND_ENUM_CONSTANT(SHADER_PARTICLES);
+	BIND_ENUM_CONSTANT(SHADER_MAX);
+
+	BIND_ENUM_CONSTANT(ARRAY_VERTEX);
+	BIND_ENUM_CONSTANT(ARRAY_NORMAL);
+	BIND_ENUM_CONSTANT(ARRAY_TANGENT);
+	BIND_ENUM_CONSTANT(ARRAY_COLOR);
+	BIND_ENUM_CONSTANT(ARRAY_TEX_UV);
+	BIND_ENUM_CONSTANT(ARRAY_TEX_UV2);
+	BIND_ENUM_CONSTANT(ARRAY_BONES);
+	BIND_ENUM_CONSTANT(ARRAY_WEIGHTS);
+	BIND_ENUM_CONSTANT(ARRAY_INDEX);
+	BIND_ENUM_CONSTANT(ARRAY_MAX);
+
+	BIND_ENUM_CONSTANT(ARRAY_FORMAT_VERTEX);
+	BIND_ENUM_CONSTANT(ARRAY_FORMAT_NORMAL);
+	BIND_ENUM_CONSTANT(ARRAY_FORMAT_TANGENT);
+	BIND_ENUM_CONSTANT(ARRAY_FORMAT_COLOR);
+	BIND_ENUM_CONSTANT(ARRAY_FORMAT_TEX_UV);
+	BIND_ENUM_CONSTANT(ARRAY_FORMAT_TEX_UV2);
+	BIND_ENUM_CONSTANT(ARRAY_FORMAT_BONES);
+	BIND_ENUM_CONSTANT(ARRAY_FORMAT_WEIGHTS);
+	BIND_ENUM_CONSTANT(ARRAY_FORMAT_INDEX);
+	BIND_ENUM_CONSTANT(ARRAY_COMPRESS_VERTEX);
+	BIND_ENUM_CONSTANT(ARRAY_COMPRESS_NORMAL);
+	BIND_ENUM_CONSTANT(ARRAY_COMPRESS_TANGENT);
+	BIND_ENUM_CONSTANT(ARRAY_COMPRESS_COLOR);
+	BIND_ENUM_CONSTANT(ARRAY_COMPRESS_TEX_UV);
+	BIND_ENUM_CONSTANT(ARRAY_COMPRESS_TEX_UV2);
+	BIND_ENUM_CONSTANT(ARRAY_COMPRESS_BONES);
+	BIND_ENUM_CONSTANT(ARRAY_COMPRESS_WEIGHTS);
+	BIND_ENUM_CONSTANT(ARRAY_COMPRESS_INDEX);
+	BIND_ENUM_CONSTANT(ARRAY_FLAG_USE_2D_VERTICES);
+	BIND_ENUM_CONSTANT(ARRAY_FLAG_USE_16_BIT_BONES);
+	BIND_ENUM_CONSTANT(ARRAY_COMPRESS_DEFAULT);
+
+	BIND_ENUM_CONSTANT(PRIMITIVE_POINTS);
+	BIND_ENUM_CONSTANT(PRIMITIVE_LINES);
+	BIND_ENUM_CONSTANT(PRIMITIVE_LINE_STRIP);
+	BIND_ENUM_CONSTANT(PRIMITIVE_LINE_LOOP);
+	BIND_ENUM_CONSTANT(PRIMITIVE_TRIANGLES);
+	BIND_ENUM_CONSTANT(PRIMITIVE_TRIANGLE_STRIP);
+	BIND_ENUM_CONSTANT(PRIMITIVE_TRIANGLE_FAN);
+	BIND_ENUM_CONSTANT(PRIMITIVE_MAX);
+
+	BIND_ENUM_CONSTANT(BLEND_SHAPE_MODE_NORMALIZED);
+	BIND_ENUM_CONSTANT(BLEND_SHAPE_MODE_RELATIVE);
+
+	BIND_ENUM_CONSTANT(LIGHT_DIRECTIONAL);
+	BIND_ENUM_CONSTANT(LIGHT_OMNI);
+	BIND_ENUM_CONSTANT(LIGHT_SPOT);
+
+	BIND_ENUM_CONSTANT(LIGHT_PARAM_ENERGY);
+	BIND_ENUM_CONSTANT(LIGHT_PARAM_SPECULAR);
+	BIND_ENUM_CONSTANT(LIGHT_PARAM_RANGE);
+	BIND_ENUM_CONSTANT(LIGHT_PARAM_ATTENUATION);
+	BIND_ENUM_CONSTANT(LIGHT_PARAM_SPOT_ANGLE);
+	BIND_ENUM_CONSTANT(LIGHT_PARAM_SPOT_ATTENUATION);
+	BIND_ENUM_CONSTANT(LIGHT_PARAM_CONTACT_SHADOW_SIZE);
+	BIND_ENUM_CONSTANT(LIGHT_PARAM_SHADOW_MAX_DISTANCE);
+	BIND_ENUM_CONSTANT(LIGHT_PARAM_SHADOW_SPLIT_1_OFFSET);
+	BIND_ENUM_CONSTANT(LIGHT_PARAM_SHADOW_SPLIT_2_OFFSET);
+	BIND_ENUM_CONSTANT(LIGHT_PARAM_SHADOW_SPLIT_3_OFFSET);
+	BIND_ENUM_CONSTANT(LIGHT_PARAM_SHADOW_NORMAL_BIAS);
+	BIND_ENUM_CONSTANT(LIGHT_PARAM_SHADOW_BIAS);
+	BIND_ENUM_CONSTANT(LIGHT_PARAM_SHADOW_BIAS_SPLIT_SCALE);
+	BIND_ENUM_CONSTANT(LIGHT_PARAM_MAX);
+
+	BIND_ENUM_CONSTANT(LIGHT_OMNI_SHADOW_DUAL_PARABOLOID);
+	BIND_ENUM_CONSTANT(LIGHT_OMNI_SHADOW_CUBE);
+	BIND_ENUM_CONSTANT(LIGHT_OMNI_SHADOW_DETAIL_VERTICAL);
+	BIND_ENUM_CONSTANT(LIGHT_OMNI_SHADOW_DETAIL_HORIZONTAL);
+
+	BIND_ENUM_CONSTANT(LIGHT_DIRECTIONAL_SHADOW_ORTHOGONAL);
+	BIND_ENUM_CONSTANT(LIGHT_DIRECTIONAL_SHADOW_PARALLEL_2_SPLITS);
+	BIND_ENUM_CONSTANT(LIGHT_DIRECTIONAL_SHADOW_PARALLEL_4_SPLITS);
+	BIND_ENUM_CONSTANT(LIGHT_DIRECTIONAL_SHADOW_DEPTH_RANGE_STABLE);
+	BIND_ENUM_CONSTANT(LIGHT_DIRECTIONAL_SHADOW_DEPTH_RANGE_OPTIMIZED);
+
+	BIND_ENUM_CONSTANT(VIEWPORT_UPDATE_DISABLED);
+	BIND_ENUM_CONSTANT(VIEWPORT_UPDATE_ONCE);
+	BIND_ENUM_CONSTANT(VIEWPORT_UPDATE_WHEN_VISIBLE);
+	BIND_ENUM_CONSTANT(VIEWPORT_UPDATE_ALWAYS);
+
+	BIND_ENUM_CONSTANT(VIEWPORT_CLEAR_ALWAYS);
+	BIND_ENUM_CONSTANT(VIEWPORT_CLEAR_NEVER);
+	BIND_ENUM_CONSTANT(VIEWPORT_CLEAR_ONLY_NEXT_FRAME);
+
+	BIND_ENUM_CONSTANT(VIEWPORT_MSAA_DISABLED);
+	BIND_ENUM_CONSTANT(VIEWPORT_MSAA_2X);
+	BIND_ENUM_CONSTANT(VIEWPORT_MSAA_4X);
+	BIND_ENUM_CONSTANT(VIEWPORT_MSAA_8X);
+	BIND_ENUM_CONSTANT(VIEWPORT_MSAA_16X);
+
+	BIND_ENUM_CONSTANT(VIEWPORT_USAGE_2D);
+	BIND_ENUM_CONSTANT(VIEWPORT_USAGE_2D_NO_SAMPLING);
+	BIND_ENUM_CONSTANT(VIEWPORT_USAGE_3D);
+	BIND_ENUM_CONSTANT(VIEWPORT_USAGE_3D_NO_EFFECTS);
+
+	BIND_ENUM_CONSTANT(VIEWPORT_RENDER_INFO_OBJECTS_IN_FRAME);
+	BIND_ENUM_CONSTANT(VIEWPORT_RENDER_INFO_VERTICES_IN_FRAME);
+	BIND_ENUM_CONSTANT(VIEWPORT_RENDER_INFO_MATERIAL_CHANGES_IN_FRAME);
+	BIND_ENUM_CONSTANT(VIEWPORT_RENDER_INFO_SHADER_CHANGES_IN_FRAME);
+	BIND_ENUM_CONSTANT(VIEWPORT_RENDER_INFO_SURFACE_CHANGES_IN_FRAME);
+	BIND_ENUM_CONSTANT(VIEWPORT_RENDER_INFO_DRAW_CALLS_IN_FRAME);
+	BIND_ENUM_CONSTANT(VIEWPORT_RENDER_INFO_MAX);
+
+	BIND_ENUM_CONSTANT(VIEWPORT_DEBUG_DRAW_DISABLED);
+	BIND_ENUM_CONSTANT(VIEWPORT_DEBUG_DRAW_UNSHADED);
+	BIND_ENUM_CONSTANT(VIEWPORT_DEBUG_DRAW_OVERDRAW);
+	BIND_ENUM_CONSTANT(VIEWPORT_DEBUG_DRAW_WIREFRAME);
+
+	BIND_ENUM_CONSTANT(SCENARIO_DEBUG_DISABLED);
+	BIND_ENUM_CONSTANT(SCENARIO_DEBUG_WIREFRAME);
+	BIND_ENUM_CONSTANT(SCENARIO_DEBUG_OVERDRAW);
+	BIND_ENUM_CONSTANT(SCENARIO_DEBUG_SHADELESS);
+
+	BIND_ENUM_CONSTANT(INSTANCE_NONE);
+	BIND_ENUM_CONSTANT(INSTANCE_MESH);
+	BIND_ENUM_CONSTANT(INSTANCE_MULTIMESH);
+	BIND_ENUM_CONSTANT(INSTANCE_IMMEDIATE);
+	BIND_ENUM_CONSTANT(INSTANCE_PARTICLES);
+	BIND_ENUM_CONSTANT(INSTANCE_LIGHT);
+	BIND_ENUM_CONSTANT(INSTANCE_REFLECTION_PROBE);
+	BIND_ENUM_CONSTANT(INSTANCE_GI_PROBE);
+	BIND_ENUM_CONSTANT(INSTANCE_LIGHTMAP_CAPTURE);
+	BIND_ENUM_CONSTANT(INSTANCE_MAX);
+	BIND_ENUM_CONSTANT(INSTANCE_GEOMETRY_MASK);
+
+	BIND_ENUM_CONSTANT(INSTANCE_FLAG_USE_BAKED_LIGHT);
+	BIND_ENUM_CONSTANT(INSTANCE_FLAG_MAX);
+
+	BIND_ENUM_CONSTANT(SHADOW_CASTING_SETTING_OFF);
+	BIND_ENUM_CONSTANT(SHADOW_CASTING_SETTING_ON);
+	BIND_ENUM_CONSTANT(SHADOW_CASTING_SETTING_DOUBLE_SIDED);
+	BIND_ENUM_CONSTANT(SHADOW_CASTING_SETTING_SHADOWS_ONLY);
+
+	BIND_ENUM_CONSTANT(NINE_PATCH_STRETCH);
+	BIND_ENUM_CONSTANT(NINE_PATCH_TILE);
+	BIND_ENUM_CONSTANT(NINE_PATCH_TILE_FIT);
+
+	BIND_ENUM_CONSTANT(CANVAS_LIGHT_MODE_ADD);
+	BIND_ENUM_CONSTANT(CANVAS_LIGHT_MODE_SUB);
+	BIND_ENUM_CONSTANT(CANVAS_LIGHT_MODE_MIX);
+	BIND_ENUM_CONSTANT(CANVAS_LIGHT_MODE_MASK);
+
+	BIND_ENUM_CONSTANT(CANVAS_LIGHT_FILTER_NONE);
+	BIND_ENUM_CONSTANT(CANVAS_LIGHT_FILTER_PCF3);
+	BIND_ENUM_CONSTANT(CANVAS_LIGHT_FILTER_PCF5);
+	BIND_ENUM_CONSTANT(CANVAS_LIGHT_FILTER_PCF7);
+	BIND_ENUM_CONSTANT(CANVAS_LIGHT_FILTER_PCF9);
+	BIND_ENUM_CONSTANT(CANVAS_LIGHT_FILTER_PCF13);
+
+	BIND_ENUM_CONSTANT(CANVAS_OCCLUDER_POLYGON_CULL_DISABLED);
+	BIND_ENUM_CONSTANT(CANVAS_OCCLUDER_POLYGON_CULL_CLOCKWISE);
+	BIND_ENUM_CONSTANT(CANVAS_OCCLUDER_POLYGON_CULL_COUNTER_CLOCKWISE);
+
+	BIND_ENUM_CONSTANT(INFO_OBJECTS_IN_FRAME);
+	BIND_ENUM_CONSTANT(INFO_VERTICES_IN_FRAME);
+	BIND_ENUM_CONSTANT(INFO_MATERIAL_CHANGES_IN_FRAME);
+	BIND_ENUM_CONSTANT(INFO_SHADER_CHANGES_IN_FRAME);
+	BIND_ENUM_CONSTANT(INFO_SURFACE_CHANGES_IN_FRAME);
+	BIND_ENUM_CONSTANT(INFO_DRAW_CALLS_IN_FRAME);
+	BIND_ENUM_CONSTANT(INFO_USAGE_VIDEO_MEM_TOTAL);
+	BIND_ENUM_CONSTANT(INFO_VIDEO_MEM_USED);
+	BIND_ENUM_CONSTANT(INFO_TEXTURE_MEM_USED);
+	BIND_ENUM_CONSTANT(INFO_VERTEX_MEM_USED);
+
+	BIND_ENUM_CONSTANT(FEATURE_SHADERS);
+	BIND_ENUM_CONSTANT(FEATURE_MULTITHREADED);
+
+	BIND_ENUM_CONSTANT(MULTIMESH_TRANSFORM_2D);
+	BIND_ENUM_CONSTANT(MULTIMESH_TRANSFORM_3D);
+	BIND_ENUM_CONSTANT(MULTIMESH_COLOR_NONE);
+	BIND_ENUM_CONSTANT(MULTIMESH_COLOR_8BIT);
+	BIND_ENUM_CONSTANT(MULTIMESH_COLOR_FLOAT);
+
+	BIND_ENUM_CONSTANT(REFLECTION_PROBE_UPDATE_ONCE);
+	BIND_ENUM_CONSTANT(REFLECTION_PROBE_UPDATE_ALWAYS);
+
+	BIND_ENUM_CONSTANT(PARTICLES_DRAW_ORDER_INDEX);
+	BIND_ENUM_CONSTANT(PARTICLES_DRAW_ORDER_LIFETIME);
+	BIND_ENUM_CONSTANT(PARTICLES_DRAW_ORDER_VIEW_DEPTH);
+
+	BIND_ENUM_CONSTANT(ENV_BG_CLEAR_COLOR);
+	BIND_ENUM_CONSTANT(ENV_BG_COLOR);
+	BIND_ENUM_CONSTANT(ENV_BG_SKY);
+	BIND_ENUM_CONSTANT(ENV_BG_COLOR_SKY);
+	BIND_ENUM_CONSTANT(ENV_BG_CANVAS);
+	BIND_ENUM_CONSTANT(ENV_BG_KEEP);
+	BIND_ENUM_CONSTANT(ENV_BG_MAX);
+
+	BIND_ENUM_CONSTANT(ENV_DOF_BLUR_QUALITY_LOW);
+	BIND_ENUM_CONSTANT(ENV_DOF_BLUR_QUALITY_MEDIUM);
+	BIND_ENUM_CONSTANT(ENV_DOF_BLUR_QUALITY_HIGH);
+
+	BIND_ENUM_CONSTANT(GLOW_BLEND_MODE_ADDITIVE);
+	BIND_ENUM_CONSTANT(GLOW_BLEND_MODE_SCREEN);
+	BIND_ENUM_CONSTANT(GLOW_BLEND_MODE_SOFTLIGHT);
+	BIND_ENUM_CONSTANT(GLOW_BLEND_MODE_REPLACE);
+
+	BIND_ENUM_CONSTANT(ENV_TONE_MAPPER_LINEAR);
+	BIND_ENUM_CONSTANT(ENV_TONE_MAPPER_REINHARDT);
+	BIND_ENUM_CONSTANT(ENV_TONE_MAPPER_FILMIC);
+	BIND_ENUM_CONSTANT(ENV_TONE_MAPPER_ACES);
+
+	BIND_ENUM_CONSTANT(ENV_SSAO_QUALITY_LOW);
+	BIND_ENUM_CONSTANT(ENV_SSAO_QUALITY_MEDIUM);
+	BIND_ENUM_CONSTANT(ENV_SSAO_QUALITY_HIGH);
+
+	BIND_ENUM_CONSTANT(ENV_SSAO_BLUR_DISABLED);
+	BIND_ENUM_CONSTANT(ENV_SSAO_BLUR_1x1);
+	BIND_ENUM_CONSTANT(ENV_SSAO_BLUR_2x2);
+	BIND_ENUM_CONSTANT(ENV_SSAO_BLUR_3x3);
+
+	ADD_SIGNAL(MethodInfo("frame_drawn_in_thread"));
 }
 
 void VisualServer::_canvas_item_add_style_box(RID p_item, const Rect2 &p_rect, const Rect2 &p_source, RID p_texture, const Vector<float> &p_margins, const Color &p_modulate) {
@@ -1499,7 +2158,6 @@ void VisualServer::_camera_set_orthogonal(RID p_camera, float p_size, float p_z_
 
 void VisualServer::mesh_add_surface_from_mesh_data(RID p_mesh, const Geometry::MeshData &p_mesh_data) {
 
-#if 1
 	PoolVector<Vector3> vertices;
 	PoolVector<Vector3> normals;
 
@@ -1524,24 +2182,6 @@ void VisualServer::mesh_add_surface_from_mesh_data(RID p_mesh, const Geometry::M
 	d[ARRAY_VERTEX] = vertices;
 	d[ARRAY_NORMAL] = normals;
 	mesh_add_surface_from_arrays(p_mesh, PRIMITIVE_TRIANGLES, d);
-
-#else
-
-	PoolVector<Vector3> vertices;
-
-	for (int i = 0; i < p_mesh_data.edges.size(); i++) {
-
-		const Geometry::MeshData::Edge &f = p_mesh_data.edges[i];
-		vertices.push_back(p_mesh_data.vertices[f.a]);
-		vertices.push_back(p_mesh_data.vertices[f.b]);
-	}
-
-	Array d;
-	d.resize(VS::ARRAY_MAX);
-	d[ARRAY_VERTEX] = vertices;
-	mesh_add_surface(p_mesh, PRIMITIVE_LINES, d);
-
-#endif
 }
 
 void VisualServer::mesh_add_surface_from_planes(RID p_mesh, const PoolVector<Plane> &p_planes) {
@@ -1566,6 +2206,40 @@ VisualServer::VisualServer() {
 
 	//ERR_FAIL_COND(singleton);
 	singleton = this;
+
+	GLOBAL_DEF("rendering/vram_compression/import_s3tc", true);
+	GLOBAL_DEF("rendering/vram_compression/import_etc", false);
+	GLOBAL_DEF("rendering/vram_compression/import_etc2", true);
+	GLOBAL_DEF("rendering/vram_compression/import_pvrtc", false);
+
+	GLOBAL_DEF("rendering/quality/directional_shadow/size", 4096);
+	GLOBAL_DEF("rendering/quality/directional_shadow/size.mobile", 2048);
+	GLOBAL_DEF("rendering/quality/shadow_atlas/size", 4096);
+	GLOBAL_DEF("rendering/quality/shadow_atlas/size.mobile", 2048);
+	ProjectSettings::get_singleton()->set_custom_property_info("rendering/quality/shadow_atlas/size", PropertyInfo(Variant::INT, "rendering/quality/shadow_atlas/size", PROPERTY_HINT_RANGE, "256,16384"));
+	GLOBAL_DEF("rendering/quality/shadow_atlas/quadrant_0_subdiv", 1);
+	GLOBAL_DEF("rendering/quality/shadow_atlas/quadrant_1_subdiv", 2);
+	GLOBAL_DEF("rendering/quality/shadow_atlas/quadrant_2_subdiv", 3);
+	GLOBAL_DEF("rendering/quality/shadow_atlas/quadrant_3_subdiv", 4);
+	ProjectSettings::get_singleton()->set_custom_property_info("rendering/quality/shadow_atlas/quadrant_0_subdiv", PropertyInfo(Variant::INT, "rendering/quality/shadow_atlas/quadrant_0_subdiv", PROPERTY_HINT_ENUM, "Disabled,1 Shadow,4 Shadows,16 Shadows,64 Shadows,256 Shadows,1024 Shadows"));
+	ProjectSettings::get_singleton()->set_custom_property_info("rendering/quality/shadow_atlas/quadrant_1_subdiv", PropertyInfo(Variant::INT, "rendering/quality/shadow_atlas/quadrant_1_subdiv", PROPERTY_HINT_ENUM, "Disabled,1 Shadow,4 Shadows,16 Shadows,64 Shadows,256 Shadows,1024 Shadows"));
+	ProjectSettings::get_singleton()->set_custom_property_info("rendering/quality/shadow_atlas/quadrant_2_subdiv", PropertyInfo(Variant::INT, "rendering/quality/shadow_atlas/quadrant_2_subdiv", PROPERTY_HINT_ENUM, "Disabled,1 Shadow,4 Shadows,16 Shadows,64 Shadows,256 Shadows,1024 Shadows"));
+	ProjectSettings::get_singleton()->set_custom_property_info("rendering/quality/shadow_atlas/quadrant_3_subdiv", PropertyInfo(Variant::INT, "rendering/quality/shadow_atlas/quadrant_3_subdiv", PROPERTY_HINT_ENUM, "Disabled,1 Shadow,4 Shadows,16 Shadows,64 Shadows,256 Shadows,1024 Shadows"));
+
+	GLOBAL_DEF("rendering/quality/shadows/filter_mode", 1);
+	GLOBAL_DEF("rendering/quality/shadows/filter_mode.mobile", 0);
+	ProjectSettings::get_singleton()->set_custom_property_info("rendering/quality/shadows/filter_mode", PropertyInfo(Variant::INT, "rendering/quality/shadows/filter_mode", PROPERTY_HINT_ENUM, "Disabled,PCF5,PCF13"));
+
+	GLOBAL_DEF("rendering/quality/reflections/texture_array_reflections", true);
+	GLOBAL_DEF("rendering/quality/reflections/texture_array_reflections.mobile", false);
+	GLOBAL_DEF("rendering/quality/reflections/high_quality_ggx", true);
+	GLOBAL_DEF("rendering/quality/reflections/high_quality_ggx.mobile", false);
+
+	GLOBAL_DEF("rendering/quality/shading/force_vertex_shading", false);
+	GLOBAL_DEF("rendering/quality/shading/force_vertex_shading.mobile", true);
+
+	GLOBAL_DEF("rendering/quality/depth_prepass/enable", true);
+	GLOBAL_DEF("rendering/quality/depth_prepass/disable_for_vendors", "PowerVR,Mali,Adreno");
 }
 
 VisualServer::~VisualServer() {

@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef SPRITE_H
 #define SPRITE_H
 
@@ -38,6 +39,7 @@ class Sprite : public Node2D {
 	GDCLASS(Sprite, Node2D);
 
 	Ref<Texture> texture;
+	Ref<Texture> normal_map;
 
 	bool centered;
 	Point2 offset;
@@ -46,11 +48,14 @@ class Sprite : public Node2D {
 	bool vflip;
 	bool region;
 	Rect2 region_rect;
+	bool region_filter_clip;
 
 	int frame;
 
 	int vframes;
 	int hframes;
+
+	void _get_rects(Rect2 &r_src_rect, Rect2 &r_dst_rect, bool &r_filter_clip) const;
 
 protected:
 	void _notification(int p_what);
@@ -59,13 +64,25 @@ protected:
 
 	virtual void _validate_property(PropertyInfo &property) const;
 
+	virtual void _changed_callback(Object *p_changed, const char *p_prop);
+
 public:
-	virtual void edit_set_pivot(const Point2 &p_pivot);
-	virtual Point2 edit_get_pivot() const;
-	virtual bool edit_has_pivot() const;
+	virtual Dictionary _edit_get_state() const;
+	virtual void _edit_set_state(const Dictionary &p_state);
+
+	virtual void _edit_set_pivot(const Point2 &p_pivot);
+	virtual Point2 _edit_get_pivot() const;
+	virtual bool _edit_use_pivot() const;
+	virtual bool _edit_is_selected_on_click(const Point2 &p_point, double p_tolerance) const;
+
+	virtual Rect2 _edit_get_rect() const;
+	virtual bool _edit_use_rect() const;
 
 	void set_texture(const Ref<Texture> &p_texture);
 	Ref<Texture> get_texture() const;
+
+	void set_normal_map(const Ref<Texture> &p_texture);
+	Ref<Texture> get_normal_map() const;
 
 	void set_centered(bool p_center);
 	bool is_centered() const;
@@ -82,6 +99,9 @@ public:
 	void set_region(bool p_region);
 	bool is_region() const;
 
+	void set_region_filter_clip(bool p_enable);
+	bool is_region_filter_clip_enabled() const;
+
 	void set_region_rect(const Rect2 &p_region_rect);
 	Rect2 get_region_rect() const;
 
@@ -94,53 +114,10 @@ public:
 	void set_hframes(int p_amount);
 	int get_hframes() const;
 
-	virtual Rect2 get_item_rect() const;
+	Rect2 get_rect() const;
 
 	Sprite();
+	~Sprite();
 };
 
-#if 0
-class ViewportSprite : public Node2D {
-
-	GDCLASS( ViewportSprite, Node2D );
-
-	Ref<Texture> texture;
-	NodePath viewport_path;
-
-	bool centered;
-	Point2 offset;
-	Color modulate;
-
-protected:
-
-	void _notification(int p_what);
-
-	static void _bind_methods();
-
-public:
-
-	virtual void edit_set_pivot(const Point2& p_pivot);
-	virtual Point2 edit_get_pivot() const;
-	virtual bool edit_has_pivot() const;
-
-	void set_viewport_path(const NodePath& p_viewport);
-	NodePath get_viewport_path() const;
-
-	void set_centered(bool p_center);
-	bool is_centered() const;
-
-	void set_offset(const Point2& p_offset);
-	Point2 get_offset() const;
-
-	void set_modulate(const Color& p_color);
-	Color get_modulate() const;
-
-	virtual Rect2 get_item_rect() const;
-
-	virtual String get_configuration_warning() const;
-
-	ViewportSprite();
-};
-
-#endif
 #endif // SPRITE_H

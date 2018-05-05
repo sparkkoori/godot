@@ -3,16 +3,40 @@
 
 ## b2d_convexdecomp
 
-- Upstream: https://github.com/erincatto/Box2D (Contributions/Utilities/ConvexDecomposition)
-- Version: TBD
+- Upstream: https://github.com/erincatto/Box2D/tree/master/Contributions/Utilities/ConvexDecomposition
+- Version: git (25615e0, 2015) with modifications
 - License: zlib
+
+The files were adapted to Godot by removing the dependency on b2Math (replacing
+it by b2Glue.h) and commenting out some verbose printf calls.
+Upstream code has not changed in 10 years, no need to keep track of changes.
+
+Important: Some files have Godot-made changes.
+They are marked with `// -- GODOT start --` and `// -- GODOT end --`
+comments.
+
+## bullet
+
+- Upstream: https://github.com/bulletphysics/bullet3
+- Version: git (d05ad4b, 2017)
+- License: zlib
+
+Files extracted from upstream source:
+
+- src/* apart from CMakeLists.txt and premake4.lua files
+- LICENSE.txt
 
 
 ## certs
 
-- Upstream: ?
+- Upstream: Mozilla, via https://apps.fedoraproject.org/packages/ca-certificates
+- Version: 2018.2.22
+- License: MPL 2.0
 
-TODO.
+File extracted from a recent Fedora install:
+/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem
+(It can't be extracted directly from the package,
+as it's generated on the user's system.)
 
 
 ## enet
@@ -37,17 +61,48 @@ Check the diff of enet.h, protocol.c, and host.c with the 1.3.13
 tarball before the next update.
 
 
+## etc2comp
+
+- Upstream: https://github.com/google/etc2comp
+- Version: git (9cd0f9c, 2017)
+- License: Apache 2.0
+
+Files extracted from upstream source:
+
+- all .cpp and .h files in EtcLib/
+- README.md, LICENSE, AUTHORS
+
+Important: Some files have Godot-made changes.
+They are marked with `// -- GODOT start --` and `// -- GODOT end --`
+comments.
+
 ## fonts
 
-- Upstream: ?
+### Noto Sans
 
-TODO.
+- Upstream: https://github.com/googlei18n/noto-fonts
+- Version: 1.06
+- License: OFL-1.1
+
+Use UI font variant if available, because it has tight vertical metrics and good for UI.
+
+### Hack Regular
+
+- Upstream: https://github.com/source-foundry/Hack
+- Version: 3.003
+- License: MIT + Bitstream Vera License
+
+### DroidSans*.ttf
+
+- Upstream: https://android.googlesource.com/platform/frameworks/base/+/master/data/fonts/
+- Version: ? (pre-2014 commit when DroidSansJapanese.ttf was obsoleted)
+- License: Apache 2.0
 
 
 ## freetype
 
 - Upstream: https://www.freetype.org
-- Version: 2.6.5
+- Version: 2.8.1
 - License: FreeType License (BSD-like)
 
 Files extracted from upstream source:
@@ -60,7 +115,7 @@ Files extracted from upstream source:
 ## glad
 
 - Upstream: https://github.com/Dav1dde/glad
-- Version: 0.1.13a0
+- Version: 0.1.16a0
 - License: MIT
 
 The files we package are automatically generated.
@@ -82,7 +137,7 @@ Files extracted from upstream source:
 ## libogg
 
 - Upstream: https://www.xiph.org/ogg
-- Version: 1.3.2
+- Version: 1.3.3
 - License: BSD-3-Clause
 
 Files extracted from upstream source:
@@ -95,7 +150,7 @@ Files extracted from upstream source:
 ## libpng
 
 - Upstream: http://libpng.org/pub/png/libpng.html
-- Version: 1.6.28
+- Version: 1.6.34
 - License: libpng/zlib
 
 Files extracted from upstream source:
@@ -109,12 +164,28 @@ Files extracted from upstream source:
 ## libsimplewebm
 
 - Upstream: https://github.com/zaps166/libsimplewebm
-- Version: 05cfdc2 (git)
+- Version: git (05cfdc2, 2016)
 - License: MIT, BSD-3-Clause
 
 Files extracted from upstream source:
 
 TODO.
+
+Important: Some files have Godot-made changes.
+They are marked with `// -- GODOT start --` and `// -- GODOT end --`
+comments.
+
+## libtheora
+
+- Upstream: https://www.theora.org
+- Version: 1.1.1
+- License: BSD-3-Clause
+
+Files extracted from upstream source:
+
+- all .c, .h in lib/
+- all .h files in include/theora/ as theora/
+- COPYING and LICENSE
 
 
 ## libvorbis
@@ -132,7 +203,7 @@ Files extracted from upstream source:
 
 ## libvpx
 
-- Upstream: http://www.webmproject.org/code/
+- Upstream: https://chromium.googlesource.com/webm/libvpx/
 - Version: 1.6.0
 - License: BSD-3-Clause
 
@@ -140,11 +211,14 @@ Files extracted from upstream source:
 
 TODO.
 
+Important: File `libvpx/vpx_dsp/x86/vpx_subpixel_8t_intrin_avx2.c` has
+Godot-made change marked with `// -- GODOT --` comments.
+
 
 ## libwebp
 
 - Upstream: https://chromium.googlesource.com/webm/libwebp/
-- Version: 0.6.0
+- Version: 0.6.1
 - License: BSD-3-Clause
 
 Files extracted from upstream source:
@@ -157,6 +231,39 @@ changes to ensure they build for Javascript/HTML5. Those
 changes are marked with `// -- GODOT --` comments.
 
 
+## libwebsockets
+
+- Upstream: https://github.com/warmcat/libwebsockets
+- Version: 2.4.2
+- License: LGPLv2.1 + static linking exception
+
+File extracted from upstream source:
+- Everything in `lib/` except `minilex.c`, `http2/`, `event-libs/`.
+  - From `misc/` exclude `lws-genhash.c`, `lws-ring.c`, `romfs.{c,h}`, `smtp.c`.
+  - From `plat/` exclude `lws-plat-{esp*,optee}.c`.
+  - From `server/` exclude `access-log.c`, `cgi.c`, `daemonize.c`, `lws-spa.c`,
+`peer-limits.c`, `rewrite.c`
+- Also copy `win32helpers/` from `win32port/`
+- `mbedtls_wrapper/include/platform/ssl_port.h` has a small change to check for OSX and FreeBSD (missing `malloc.h`).
+  The bug is fixed in upstream master via `LWS_HAVE_MALLOC_H`, but not in the 2.4.1 branch (as the file structure has changed).
+- You might need to apply the patch in `thirdparty/lws/mbedtls_verify.diff` (port of PR 1215) to future `2.4.x` releases if it does not get cherry picked.
+
+Important: `lws_config.h` and `lws_config_private.h` contains custom
+Godot build configurations, check them out when updating.
+
+## mbedTLS
+
+- Upstream: https://tls.mbed.org/
+- Version: 2.8.0
+- License: Apache 2.0
+
+File extracted from upstream release tarball `mbedtls-2.8.0-apache.tgz`:
+- All `*.h` from `include/mbedtls/` to `thirdparty/mbedtls/include/mbedtls/`
+- All `*.c` from `library/` to `thirdparty/mbedtls/library/`
+- In file `thirdparty/mbedtls/library/net_sockets.c` mbedTLS overrides the `_WIN32_WINNT` define.
+  Be sure to check the Godot addition to only redfine it when undefined or `< 0x0501` (PRed upstream).
+- Applied the patch in `thirdparty/mbedtls/1453.diff` (PR 1453). Soon to be merged upstream. Check it out at next update.
+
 ## minizip
 
 - Upstream: http://www.zlib.net
@@ -168,7 +275,8 @@ Files extracted from the upstream source:
 - contrib/minizip/{crypt.h,ioapi.{c,h},zip.{c,h},unzip.{c,h}}
 
 Important: Some files have Godot-made changes for use in core/io.
-TODO: Properly sync with version 1.2.4 and document changes.
+They are marked with `/* GODOT start */` and `/* GODOT end */`
+comments and a patch is provided in the minizip/ folder.
 
 
 ## misc
@@ -186,8 +294,8 @@ Collection of single-file libraries used in Godot components.
   * Version: latest, as of April 2017
   * License: Public Domain
 - `fastlz.{c,h}`
-  * Upstream: https://code.google.com/archive/p/fastlz
-  * Version: svn (r12)
+  * Upstream: https://github.com/ariya/FastLZ
+  * Version: git (f121734, 2007)
   * License: MIT
 - `hq2x.{cpp,h}`
   * Upstream: https://github.com/brunexgeek/hqx
@@ -199,7 +307,7 @@ Collection of single-file libraries used in Godot components.
   * License: RSA Message-Digest License
 - `pcg.{cpp,h}`
   * Upstream: http://www.pcg-random.org
-  * Version: minimal C implemention, http://www.pcg-random.org/download.html
+  * Version: minimal C implementation, http://www.pcg-random.org/download.html
   * License: Apache 2.0
 - `sha256.{c,h}`
   * Upstream: https://github.com/ilvn/SHA256
@@ -208,7 +316,7 @@ Collection of single-file libraries used in Godot components.
 - `smaz.{c,h}`
   * Upstream: https://github.com/antirez/smaz
   * Version: git (150e125, 2009)
-  * License: BSD 3-clause
+  * License: BSD-3-Clause
   * Modifications: use `const char*` instead of `char*` for input string
 - `triangulator.{cpp,h}`
   * Upstream: https://github.com/ivanfratric/polypartition (`src/polypartition.cpp`)
@@ -234,40 +342,24 @@ Collection of single-file libraries used in Godot components.
   * License: zlib
 - `stb_truetype.h`
   * Upstream: https://github.com/nothings/stb
-  * Version: 1.11
+  * Version: 1.17
   * License: Public Domain (Unlicense) or MIT
 - `stb_vorbis.c`
   * Upstream: https://github.com/nothings/stb
-  * Version: 1.09
+  * Version: 1.11
   * License: Public Domain (Unlicense) or MIT
 
 
-## openssl
+## nanosvg
 
-- Upstream: https://www.openssl.org
-- Version: 1.0.2h
-- License: OpenSSL license / BSD-like
+- Upstream: https://github.com/memononen/nanosvg
+- Version: 9a74da4 (git)
+- License: zlib
 
 Files extracted from the upstream source:
 
-- Our `openssl/`: contains the headers installed in /usr/include/openssl;
-  gather them in the source tarball with `make links` and
-  `cp -f include/openssl/*.h ../openssl/openssl/`
-- Our `crypto/`: copy of upstream `crypto/`, with some cleanup (see below).
-- Our `ssl/`: copy of upstream `ssl/`, with some cleanup (see below).
-- Cleanup:
-  ```
-  find \( -name "Makefile" -o -name "*.S" -o -name "*.bat" -o -name "*.bc" \
-    -o -name "*.com" -o -name "*.cnf" -o -name "*.ec" -o -name "*.fre" \
-    -o -name "*.gcc" -o -name "*.in" -o -name "*.lnx" -o -name "*.m4" \
-    -o -name "*.pl" -o -name "*.pod" -o -name "*.s" -o -name "*.sh" \
-    -o -name "*.sol" -o -name "*test*" \) -delete
-  cd openssl; for file in *.h; do find ../{crypto,ssl} -name "$file" -delete; done
-  ```
-  For the rest check the `git status` and decide.
-- e_os.h
-- Apply the Godot-specific patches in the `patches/` folder.
-
+- All .h files in `src/`
+- LICENSE.txt
 
 ## opus
 
@@ -284,10 +376,24 @@ Files extracted from upstream source:
 - COPYING
 
 
+## pcre2
+
+- Upstream: http://www.pcre.org/
+- Version: 10.23
+- License: BSD-3-Clause
+
+Files extracted from upstream source:
+
+- Files listed in NON-AUTOTOOLS-BUILD steps 1-4
+- All .h files in src/
+- src/pcre2_jit_*.c and src/sljit/*
+- AUTHORS and COPYING
+
+
 ## pvrtccompressor
 
 - Upstream: https://bitbucket.org/jthlim/pvrtccompressor
-- Version: hg commit cf71777 - 2015-01-08
+- Version: hg (cf71777, 2015)
 - License: BSD-3-Clause
 
 Files extracted from upstream source:
@@ -296,15 +402,16 @@ Files extracted from upstream source:
 - LICENSE.TXT
 
 
-## rg-etc1
+## recastnavigation
 
-- Upstream: https://github.com/richgel999/rg-etc1
-- Version: 1.04
+- Upstream: https://github.com/recastnavigation/recastnavigation
+- version: git (ef3ea40f, 2017)
 - License: zlib
 
 Files extracted from upstream source:
 
-- `rg_etc1.{cpp,h}`
+- `Recast/` folder
+- License.txt
 
 
 ## rtaudio
@@ -328,41 +435,55 @@ Files extracted from upstream source:
 
 - all .cpp, .h and .inl files
 
+Important: Some files have Godot-made changes.
+They are marked with `// -- GODOT start --` and `// -- GODOT end --`
+comments and a patch is provided in the squish/ folder.
 
-## theora
 
-- Upstream: https://www.theora.org
-- Version: 1.1.1
-- License: BSD-3-Clause
+## thekla_atlas
 
-Files extracted from upstream source:
+- Upstream: https://github.com/Thekla/thekla_atlas
+- Version: git (80a1430, 2017)
+- License: MIT
 
-- all .c, .h in lib/
-- all .h files in include/theora/ as theora/
-- COPYING and LICENSE
+Files extracted from the upstream source:
+
+- Relevant sources from src/
+- License.txt
+
+Important: Some files have Godot-made changes, those
+changes are marked with `// -- GODOT --` comments.
 
 
 ## tinyexr
 
 - Upstream: https://github.com/syoyo/tinyexr
-- Version: 0.9.5+ (git a145d69)
+- Version: git (e385dad, 2018)
 - License: BSD-3-Clause
 
 Files extracted from upstream source:
 
 - `tinyexr.{cc,h}`
 
-Important: Some changes were made to get TinyEXR to build on the ancient
-MinGW-w64 toolchain of Travis CI.
-https://github.com/godotengine/godot/commit/37f5e1dcd94611dd5b670f013abf0323e8b47def
-
 
 ## zlib
 
-- Upstream: http://www.zlib.net/
+- Upstream: http://www.zlib.net
 - Version: 1.2.11
 - License: zlib
 
 Files extracted from upstream source:
 
 - all .c and .h files
+
+
+## zstd
+
+- Upstream: https://github.com/facebook/zstd
+- Version: 1.3.3
+- License: BSD-3-Clause
+
+Files extracted from upstream source:
+
+- lib/{common/,compress/,decompress/,zstd.h}
+- LICENSE

@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef SLIDER_H
 #define SLIDER_H
 
@@ -46,6 +47,7 @@ class Slider : public Range {
 	bool mouse_inside;
 	Orientation orientation;
 	float custom_step;
+	bool editable;
 
 protected:
 	void _gui_input(Ref<InputEvent> p_event);
@@ -65,6 +67,9 @@ public:
 	void set_ticks_on_borders(bool);
 	bool get_ticks_on_borders() const;
 
+	void set_editable(bool p_editable);
+	bool is_editable() const;
+
 	Slider(Orientation p_orientation = VERTICAL);
 };
 
@@ -73,8 +78,8 @@ class HSlider : public Slider {
 	GDCLASS(HSlider, Slider);
 
 public:
-	HSlider()
-		: Slider(HORIZONTAL) { set_v_size_flags(0); }
+	HSlider() :
+			Slider(HORIZONTAL) { set_v_size_flags(0); }
 };
 
 class VSlider : public Slider {
@@ -82,8 +87,8 @@ class VSlider : public Slider {
 	GDCLASS(VSlider, Slider);
 
 public:
-	VSlider()
-		: Slider(VERTICAL) { set_h_size_flags(0); }
+	VSlider() :
+			Slider(VERTICAL) { set_h_size_flags(0); }
 };
 
 #endif // SLIDER_H

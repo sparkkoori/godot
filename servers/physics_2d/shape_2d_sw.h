@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,11 +27,12 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef SHAPE_2D_2DSW_H
 #define SHAPE_2D_2DSW_H
 
 #include "servers/physics_2d_server.h"
-#define _SEGMENT_IS_VALID_SUPPORT_TRESHOLD 0.99998
+#define _SEGMENT_IS_VALID_SUPPORT_THRESHOLD 0.99998
 
 /*
 
@@ -106,7 +107,7 @@ public:
 
 		if (r_amount == 1) {
 
-			if (Math::abs(p_normal.dot(p_cast.normalized())) < (1.0 - _SEGMENT_IS_VALID_SUPPORT_TRESHOLD)) {
+			if (Math::abs(p_normal.dot(p_cast.normalized())) < (1.0 - _SEGMENT_IS_VALID_SUPPORT_THRESHOLD)) {
 				//make line because they are parallel
 				r_amount = 2;
 				r_supports[1] = r_supports[0] + p_cast;
@@ -117,7 +118,7 @@ public:
 
 		} else {
 
-			if (Math::abs(p_normal.dot(p_cast.normalized())) < (1.0 - _SEGMENT_IS_VALID_SUPPORT_TRESHOLD)) {
+			if (Math::abs(p_normal.dot(p_cast.normalized())) < (1.0 - _SEGMENT_IS_VALID_SUPPORT_THRESHOLD)) {
 				//optimize line and make it larger because they are parallel
 				if ((r_supports[1] - r_supports[0]).dot(p_cast) > 0) {
 					//larger towards 1
@@ -196,9 +197,11 @@ public:
 class RayShape2DSW : public Shape2DSW {
 
 	real_t length;
+	bool slips_on_slope;
 
 public:
 	_FORCE_INLINE_ real_t get_length() const { return length; }
+	_FORCE_INLINE_ bool get_slips_on_slope() const { return slips_on_slope; }
 
 	virtual Physics2DServer::ShapeType get_type() const { return Physics2DServer::SHAPE_RAY; }
 

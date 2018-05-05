@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,20 +27,19 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "broad_phase_basic.h"
 #include "list.h"
 #include "print_string.h"
-BroadPhaseSW::ID BroadPhaseBasic::create(CollisionObjectSW *p_object_, int p_subindex) {
 
-	if (p_object_ == NULL) {
+BroadPhaseSW::ID BroadPhaseBasic::create(CollisionObjectSW *p_object, int p_subindex) {
 
-		ERR_FAIL_COND_V(p_object_ == NULL, 0);
-	}
+	ERR_FAIL_COND_V(p_object == NULL, 0);
 
 	current++;
 
 	Element e;
-	e.owner = p_object_;
+	e.owner = p_object;
 	e._static = false;
 	e.subindex = p_subindex;
 
@@ -48,7 +47,7 @@ BroadPhaseSW::ID BroadPhaseBasic::create(CollisionObjectSW *p_object_, int p_sub
 	return current;
 }
 
-void BroadPhaseBasic::move(ID p_id, const Rect3 &p_aabb) {
+void BroadPhaseBasic::move(ID p_id, const AABB &p_aabb) {
 
 	Map<ID, Element>::Element *E = element_map.find(p_id);
 	ERR_FAIL_COND(!E);
@@ -105,13 +104,33 @@ int BroadPhaseBasic::get_subindex(ID p_id) const {
 	return E->get().subindex;
 }
 
+int BroadPhaseBasic::cull_point(const Vector3 &p_point, CollisionObjectSW **p_results, int p_max_results, int *p_result_indices) {
+
+	int rc = 0;
+
+	for (Map<ID, Element>::Element *E = element_map.front(); E; E = E->next()) {
+
+		const AABB aabb = E->get().aabb;
+		if (aabb.has_point(p_point)) {
+
+			p_results[rc] = E->get().owner;
+			p_result_indices[rc] = E->get().subindex;
+			rc++;
+			if (rc >= p_max_results)
+				break;
+		}
+	}
+
+	return rc;
+}
+
 int BroadPhaseBasic::cull_segment(const Vector3 &p_from, const Vector3 &p_to, CollisionObjectSW **p_results, int p_max_results, int *p_result_indices) {
 
 	int rc = 0;
 
 	for (Map<ID, Element>::Element *E = element_map.front(); E; E = E->next()) {
 
-		const Rect3 aabb = E->get().aabb;
+		const AABB aabb = E->get().aabb;
 		if (aabb.intersects_segment(p_from, p_to)) {
 
 			p_results[rc] = E->get().owner;
@@ -124,13 +143,13 @@ int BroadPhaseBasic::cull_segment(const Vector3 &p_from, const Vector3 &p_to, Co
 
 	return rc;
 }
-int BroadPhaseBasic::cull_aabb(const Rect3 &p_aabb, CollisionObjectSW **p_results, int p_max_results, int *p_result_indices) {
+int BroadPhaseBasic::cull_aabb(const AABB &p_aabb, CollisionObjectSW **p_results, int p_max_results, int *p_result_indices) {
 
 	int rc = 0;
 
 	for (Map<ID, Element>::Element *E = element_map.front(); E; E = E->next()) {
 
-		const Rect3 aabb = E->get().aabb;
+		const AABB aabb = E->get().aabb;
 		if (aabb.intersects(p_aabb)) {
 
 			p_results[rc] = E->get().owner;
@@ -149,10 +168,10 @@ void BroadPhaseBasic::set_pair_callback(PairCallback p_pair_callback, void *p_us
 	pair_userdata = p_userdata;
 	pair_callback = p_pair_callback;
 }
-void BroadPhaseBasic::set_unpair_callback(UnpairCallback p_pair_callback, void *p_userdata) {
+void BroadPhaseBasic::set_unpair_callback(UnpairCallback p_unpair_callback, void *p_userdata) {
 
 	unpair_userdata = p_userdata;
-	unpair_callback = p_pair_callback;
+	unpair_callback = p_unpair_callback;
 }
 
 void BroadPhaseBasic::update() {

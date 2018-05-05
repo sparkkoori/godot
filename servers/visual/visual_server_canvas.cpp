@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "visual_server_canvas.h"
 #include "visual_server_global.h"
 #include "visual_server_viewport.h"
@@ -37,17 +38,15 @@ void VisualServerCanvas::_render_canvas_item_tree(Item *p_canvas_item, const Tra
 	RasterizerCanvas::Item *z_list[z_range];
 	RasterizerCanvas::Item *z_last_list[z_range];
 
-	for (int i = 0; i < z_range; i++) {
-		z_list[i] = NULL;
-		z_last_list[i] = NULL;
-	}
+	memset(z_list, 0, z_range * sizeof(RasterizerCanvas::Item *));
+	memset(z_last_list, 0, z_range * sizeof(RasterizerCanvas::Item *));
 
 	_render_canvas_item(p_canvas_item, p_transform, p_clip_rect, Color(1, 1, 1, 1), 0, z_list, z_last_list, NULL, NULL);
 
 	for (int i = 0; i < z_range; i++) {
 		if (!z_list[i])
 			continue;
-		VSG::canvas_render->canvas_render_items(z_list[i], VS::CANVAS_ITEM_Z_MIN + i, p_modulate, p_lights);
+		VSG::canvas_render->canvas_render_items(z_list[i], VS::CANVAS_ITEM_Z_MIN + i, p_modulate, p_lights, p_transform);
 	}
 }
 
@@ -57,6 +56,12 @@ void VisualServerCanvas::_render_canvas_item(Item *p_canvas_item, const Transfor
 
 	if (!ci->visible)
 		return;
+
+	if (p_canvas_item->children_order_dirty) {
+
+		p_canvas_item->child_items.sort_custom<ItemIndexSort>();
+		p_canvas_item->children_order_dirty = false;
+	}
 
 	Rect2 rect = ci->get_rect();
 	Transform2D xform = p_transform * ci->xform;
@@ -98,9 +103,9 @@ void VisualServerCanvas::_render_canvas_item(Item *p_canvas_item, const Transfor
 	}
 
 	if (ci->z_relative)
-		p_z = CLAMP(p_z + ci->z, VS::CANVAS_ITEM_Z_MIN, VS::CANVAS_ITEM_Z_MAX);
+		p_z = CLAMP(p_z + ci->z_index, VS::CANVAS_ITEM_Z_MIN, VS::CANVAS_ITEM_Z_MAX);
 	else
-		p_z = ci->z;
+		p_z = ci->z_index;
 
 	for (int i = 0; i < child_item_count; i++) {
 
@@ -171,8 +176,14 @@ void VisualServerCanvas::render_canvas(Canvas *p_canvas, const Transform2D &p_tr
 
 	VSG::canvas_render->canvas_begin();
 
+	if (p_canvas->children_order_dirty) {
+
+		p_canvas->child_items.sort();
+		p_canvas->children_order_dirty = false;
+	}
+
 	int l = p_canvas->child_items.size();
-	Canvas::ChildItem *ci = p_canvas->child_items.ptr();
+	Canvas::ChildItem *ci = p_canvas->child_items.ptrw();
 
 	bool has_mirror = false;
 	for (int i = 0; i < l; i++) {
@@ -188,10 +199,9 @@ void VisualServerCanvas::render_canvas(Canvas *p_canvas, const Transform2D &p_tr
 		RasterizerCanvas::Item *z_list[z_range];
 		RasterizerCanvas::Item *z_last_list[z_range];
 
-		for (int i = 0; i < z_range; i++) {
-			z_list[i] = NULL;
-			z_last_list[i] = NULL;
-		}
+		memset(z_list, 0, z_range * sizeof(RasterizerCanvas::Item *));
+		memset(z_last_list, 0, z_range * sizeof(RasterizerCanvas::Item *));
+
 		for (int i = 0; i < l; i++) {
 			_render_canvas_item(ci[i].item, p_transform, p_clip_rect, Color(1, 1, 1, 1), 0, z_list, z_last_list, NULL, NULL);
 		}
@@ -204,7 +214,7 @@ void VisualServerCanvas::render_canvas(Canvas *p_canvas, const Transform2D &p_tr
 				_light_mask_canvas_items(VS::CANVAS_ITEM_Z_MIN + i, z_list[i], p_masked_lights);
 			}
 
-			VSG::canvas_render->canvas_render_items(z_list[i], VS::CANVAS_ITEM_Z_MIN + i, p_canvas->modulate, p_lights);
+			VSG::canvas_render->canvas_render_items(z_list[i], VS::CANVAS_ITEM_Z_MIN + i, p_canvas->modulate, p_lights, p_transform);
 		}
 	} else {
 
@@ -397,6 +407,115 @@ void VisualServerCanvas::canvas_item_add_line(RID p_item, const Point2 &p_from, 
 	canvas_item->commands.push_back(line);
 }
 
+void VisualServerCanvas::canvas_item_add_polyline(RID p_item, const Vector<Point2> &p_points, const Vector<Color> &p_colors, float p_width, bool p_antialiased) {
+
+	ERR_FAIL_COND(p_points.size() < 2);
+	Item *canvas_item = canvas_item_owner.getornull(p_item);
+	ERR_FAIL_COND(!canvas_item);
+
+	Item::CommandPolyLine *pline = memnew(Item::CommandPolyLine);
+	ERR_FAIL_COND(!pline);
+
+	pline->antialiased = p_antialiased;
+	pline->multiline = false;
+
+	if (p_width <= 1) {
+		pline->lines = p_points;
+		pline->line_colors = p_colors;
+		if (pline->line_colors.size() == 0) {
+			pline->line_colors.push_back(Color(1, 1, 1, 1));
+		} else if (pline->line_colors.size() > 1 && pline->line_colors.size() != pline->lines.size()) {
+			pline->line_colors.resize(1);
+		}
+	} else {
+		//make a trianglestrip for drawing the line...
+		Vector2 prev_t;
+		pline->triangles.resize(p_points.size() * 2);
+		if (p_antialiased) {
+			pline->lines.resize(p_points.size() * 2);
+		}
+
+		if (p_colors.size() == 0) {
+			pline->triangle_colors.push_back(Color(1, 1, 1, 1));
+			if (p_antialiased) {
+				pline->line_colors.push_back(Color(1, 1, 1, 1));
+			}
+		} else if (p_colors.size() == 1) {
+			pline->triangle_colors = p_colors;
+			pline->line_colors = p_colors;
+		} else {
+			if (p_colors.size() != p_points.size()) {
+				pline->triangle_colors.push_back(p_colors[0]);
+				pline->line_colors.push_back(p_colors[0]);
+			} else {
+				pline->triangle_colors.resize(pline->triangles.size());
+				pline->line_colors.resize(pline->lines.size());
+			}
+		}
+
+		for (int i = 0; i < p_points.size(); i++) {
+
+			Vector2 t;
+			if (i == p_points.size() - 1) {
+				t = prev_t;
+			} else {
+				t = (p_points[i + 1] - p_points[i]).normalized().tangent();
+				if (i == 0) {
+					prev_t = t;
+				}
+			}
+
+			Vector2 tangent = ((t + prev_t).normalized()) * p_width * 0.5;
+
+			if (p_antialiased) {
+				pline->lines[i] = p_points[i] + tangent;
+				pline->lines[p_points.size() * 2 - i - 1] = p_points[i] - tangent;
+				if (pline->line_colors.size() > 1) {
+					pline->line_colors[i] = p_colors[i];
+					pline->line_colors[p_points.size() * 2 - i - 1] = p_colors[i];
+				}
+			}
+
+			pline->triangles[i * 2 + 0] = p_points[i] + tangent;
+			pline->triangles[i * 2 + 1] = p_points[i] - tangent;
+
+			if (pline->triangle_colors.size() > 1) {
+
+				pline->triangle_colors[i * 2 + 0] = p_colors[i];
+				pline->triangle_colors[i * 2 + 1] = p_colors[i];
+			}
+
+			prev_t = t;
+		}
+	}
+	canvas_item->rect_dirty = true;
+	canvas_item->commands.push_back(pline);
+}
+
+void VisualServerCanvas::canvas_item_add_multiline(RID p_item, const Vector<Point2> &p_points, const Vector<Color> &p_colors, float p_width, bool p_antialiased) {
+
+	ERR_FAIL_COND(p_points.size() < 2);
+	Item *canvas_item = canvas_item_owner.getornull(p_item);
+	ERR_FAIL_COND(!canvas_item);
+
+	Item::CommandPolyLine *pline = memnew(Item::CommandPolyLine);
+	ERR_FAIL_COND(!pline);
+
+	pline->antialiased = false; //todo
+	pline->multiline = true;
+
+	pline->lines = p_points;
+	pline->line_colors = p_colors;
+	if (pline->line_colors.size() == 0) {
+		pline->line_colors.push_back(Color(1, 1, 1, 1));
+	} else if (pline->line_colors.size() > 1 && pline->line_colors.size() != pline->lines.size()) {
+		pline->line_colors.resize(1);
+	}
+
+	canvas_item->rect_dirty = true;
+	canvas_item->commands.push_back(pline);
+}
+
 void VisualServerCanvas::canvas_item_add_rect(RID p_item, const Rect2 &p_rect, const Color &p_color) {
 
 	Item *canvas_item = canvas_item_owner.getornull(p_item);
@@ -425,7 +544,7 @@ void VisualServerCanvas::canvas_item_add_circle(RID p_item, const Point2 &p_pos,
 	canvas_item->commands.push_back(circle);
 }
 
-void VisualServerCanvas::canvas_item_add_texture_rect(RID p_item, const Rect2 &p_rect, RID p_texture, bool p_tile, const Color &p_modulate, bool p_transpose) {
+void VisualServerCanvas::canvas_item_add_texture_rect(RID p_item, const Rect2 &p_rect, RID p_texture, bool p_tile, const Color &p_modulate, bool p_transpose, RID p_normal_map) {
 
 	Item *canvas_item = canvas_item_owner.getornull(p_item);
 	ERR_FAIL_COND(!canvas_item);
@@ -456,11 +575,12 @@ void VisualServerCanvas::canvas_item_add_texture_rect(RID p_item, const Rect2 &p
 		SWAP(rect->rect.size.x, rect->rect.size.y);
 	}
 	rect->texture = p_texture;
+	rect->normal_map = p_normal_map;
 	canvas_item->rect_dirty = true;
 	canvas_item->commands.push_back(rect);
 }
 
-void VisualServerCanvas::canvas_item_add_texture_rect_region(RID p_item, const Rect2 &p_rect, RID p_texture, const Rect2 &p_src_rect, const Color &p_modulate, bool p_transpose) {
+void VisualServerCanvas::canvas_item_add_texture_rect_region(RID p_item, const Rect2 &p_rect, RID p_texture, const Rect2 &p_src_rect, const Color &p_modulate, bool p_transpose, RID p_normal_map, bool p_clip_uv) {
 
 	Item *canvas_item = canvas_item_owner.getornull(p_item);
 	ERR_FAIL_COND(!canvas_item);
@@ -470,6 +590,7 @@ void VisualServerCanvas::canvas_item_add_texture_rect_region(RID p_item, const R
 	rect->modulate = p_modulate;
 	rect->rect = p_rect;
 	rect->texture = p_texture;
+	rect->normal_map = p_normal_map;
 	rect->source = p_src_rect;
 	rect->flags = RasterizerCanvas::CANVAS_RECT_REGION;
 
@@ -488,12 +609,16 @@ void VisualServerCanvas::canvas_item_add_texture_rect_region(RID p_item, const R
 		SWAP(rect->rect.size.x, rect->rect.size.y);
 	}
 
+	if (p_clip_uv) {
+		rect->flags |= RasterizerCanvas::CANVAS_RECT_CLIP_UV;
+	}
+
 	canvas_item->rect_dirty = true;
 
 	canvas_item->commands.push_back(rect);
 }
 
-void VisualServerCanvas::canvas_item_add_nine_patch(RID p_item, const Rect2 &p_rect, const Rect2 &p_source, RID p_texture, const Vector2 &p_topleft, const Vector2 &p_bottomright, VS::NinePatchAxisMode p_x_axis_mode, VS::NinePatchAxisMode p_y_axis_mode, bool p_draw_center, const Color &p_modulate) {
+void VisualServerCanvas::canvas_item_add_nine_patch(RID p_item, const Rect2 &p_rect, const Rect2 &p_source, RID p_texture, const Vector2 &p_topleft, const Vector2 &p_bottomright, VS::NinePatchAxisMode p_x_axis_mode, VS::NinePatchAxisMode p_y_axis_mode, bool p_draw_center, const Color &p_modulate, RID p_normal_map) {
 
 	Item *canvas_item = canvas_item_owner.getornull(p_item);
 	ERR_FAIL_COND(!canvas_item);
@@ -501,6 +626,7 @@ void VisualServerCanvas::canvas_item_add_nine_patch(RID p_item, const Rect2 &p_r
 	Item::CommandNinePatch *style = memnew(Item::CommandNinePatch);
 	ERR_FAIL_COND(!style);
 	style->texture = p_texture;
+	style->normal_map = p_normal_map;
 	style->rect = p_rect;
 	style->source = p_source;
 	style->draw_center = p_draw_center;
@@ -515,7 +641,7 @@ void VisualServerCanvas::canvas_item_add_nine_patch(RID p_item, const Rect2 &p_r
 
 	canvas_item->commands.push_back(style);
 }
-void VisualServerCanvas::canvas_item_add_primitive(RID p_item, const Vector<Point2> &p_points, const Vector<Color> &p_colors, const Vector<Point2> &p_uvs, RID p_texture, float p_width) {
+void VisualServerCanvas::canvas_item_add_primitive(RID p_item, const Vector<Point2> &p_points, const Vector<Color> &p_colors, const Vector<Point2> &p_uvs, RID p_texture, float p_width, RID p_normal_map) {
 
 	Item *canvas_item = canvas_item_owner.getornull(p_item);
 	ERR_FAIL_COND(!canvas_item);
@@ -523,6 +649,7 @@ void VisualServerCanvas::canvas_item_add_primitive(RID p_item, const Vector<Poin
 	Item::CommandPrimitive *prim = memnew(Item::CommandPrimitive);
 	ERR_FAIL_COND(!prim);
 	prim->texture = p_texture;
+	prim->normal_map = p_normal_map;
 	prim->points = p_points;
 	prim->uvs = p_uvs;
 	prim->colors = p_colors;
@@ -532,7 +659,7 @@ void VisualServerCanvas::canvas_item_add_primitive(RID p_item, const Vector<Poin
 	canvas_item->commands.push_back(prim);
 }
 
-void VisualServerCanvas::canvas_item_add_polygon(RID p_item, const Vector<Point2> &p_points, const Vector<Color> &p_colors, const Vector<Point2> &p_uvs, RID p_texture) {
+void VisualServerCanvas::canvas_item_add_polygon(RID p_item, const Vector<Point2> &p_points, const Vector<Color> &p_colors, const Vector<Point2> &p_uvs, RID p_texture, RID p_normal_map, bool p_antialiased) {
 
 	Item *canvas_item = canvas_item_owner.getornull(p_item);
 	ERR_FAIL_COND(!canvas_item);
@@ -555,17 +682,19 @@ void VisualServerCanvas::canvas_item_add_polygon(RID p_item, const Vector<Point2
 	Item::CommandPolygon *polygon = memnew(Item::CommandPolygon);
 	ERR_FAIL_COND(!polygon);
 	polygon->texture = p_texture;
+	polygon->normal_map = p_normal_map;
 	polygon->points = p_points;
 	polygon->uvs = p_uvs;
 	polygon->colors = p_colors;
 	polygon->indices = indices;
 	polygon->count = indices.size();
+	polygon->antialiased = p_antialiased;
 	canvas_item->rect_dirty = true;
 
 	canvas_item->commands.push_back(polygon);
 }
 
-void VisualServerCanvas::canvas_item_add_triangle_array(RID p_item, const Vector<int> &p_indices, const Vector<Point2> &p_points, const Vector<Color> &p_colors, const Vector<Point2> &p_uvs, RID p_texture, int p_count) {
+void VisualServerCanvas::canvas_item_add_triangle_array(RID p_item, const Vector<int> &p_indices, const Vector<Point2> &p_points, const Vector<Color> &p_colors, const Vector<Point2> &p_uvs, const Vector<int> &p_bones, const Vector<float> &p_weights, RID p_texture, int p_count, RID p_normal_map) {
 
 	Item *canvas_item = canvas_item_owner.getornull(p_item);
 	ERR_FAIL_COND(!canvas_item);
@@ -573,6 +702,8 @@ void VisualServerCanvas::canvas_item_add_triangle_array(RID p_item, const Vector
 	int ps = p_points.size();
 	ERR_FAIL_COND(!p_colors.empty() && p_colors.size() != ps && p_colors.size() != 1);
 	ERR_FAIL_COND(!p_uvs.empty() && p_uvs.size() != ps);
+	ERR_FAIL_COND(!p_bones.empty() && p_bones.size() != ps * 4);
+	ERR_FAIL_COND(!p_weights.empty() && p_weights.size() != ps * 4);
 
 	Vector<int> indices = p_indices;
 
@@ -593,11 +724,15 @@ void VisualServerCanvas::canvas_item_add_triangle_array(RID p_item, const Vector
 	Item::CommandPolygon *polygon = memnew(Item::CommandPolygon);
 	ERR_FAIL_COND(!polygon);
 	polygon->texture = p_texture;
+	polygon->normal_map = p_normal_map;
 	polygon->points = p_points;
 	polygon->uvs = p_uvs;
 	polygon->colors = p_colors;
+	polygon->bones = p_bones;
+	polygon->weights = p_weights;
 	polygon->indices = indices;
 	polygon->count = count;
+	polygon->antialiased = false;
 	canvas_item->rect_dirty = true;
 
 	canvas_item->commands.push_back(polygon);
@@ -615,7 +750,7 @@ void VisualServerCanvas::canvas_item_add_set_transform(RID p_item, const Transfo
 	canvas_item->commands.push_back(tr);
 }
 
-void VisualServerCanvas::canvas_item_add_mesh(RID p_item, const RID &p_mesh, RID p_skeleton) {
+void VisualServerCanvas::canvas_item_add_mesh(RID p_item, const RID &p_mesh, RID p_texture, RID p_normal_map) {
 
 	Item *canvas_item = canvas_item_owner.getornull(p_item);
 	ERR_FAIL_COND(!canvas_item);
@@ -623,11 +758,32 @@ void VisualServerCanvas::canvas_item_add_mesh(RID p_item, const RID &p_mesh, RID
 	Item::CommandMesh *m = memnew(Item::CommandMesh);
 	ERR_FAIL_COND(!m);
 	m->mesh = p_mesh;
-	m->skeleton = p_skeleton;
+	m->texture = p_texture;
+	m->normal_map = p_normal_map;
 
 	canvas_item->commands.push_back(m);
 }
-void VisualServerCanvas::canvas_item_add_multimesh(RID p_item, RID p_mesh, RID p_skeleton) {
+void VisualServerCanvas::canvas_item_add_particles(RID p_item, RID p_particles, RID p_texture, RID p_normal, int p_h_frames, int p_v_frames) {
+
+	Item *canvas_item = canvas_item_owner.getornull(p_item);
+	ERR_FAIL_COND(!canvas_item);
+
+	Item::CommandParticles *part = memnew(Item::CommandParticles);
+	ERR_FAIL_COND(!part);
+	part->particles = p_particles;
+	part->texture = p_texture;
+	part->normal_map = p_normal;
+	part->h_frames = p_h_frames;
+	part->v_frames = p_v_frames;
+
+	//take the chance and request processing for them, at least once until they become visible again
+	VSG::storage->particles_request_process(p_particles);
+
+	canvas_item->rect_dirty = true;
+	canvas_item->commands.push_back(part);
+}
+
+void VisualServerCanvas::canvas_item_add_multimesh(RID p_item, RID p_mesh, RID p_texture, RID p_normal_map) {
 
 	Item *canvas_item = canvas_item_owner.getornull(p_item);
 	ERR_FAIL_COND(!canvas_item);
@@ -635,8 +791,10 @@ void VisualServerCanvas::canvas_item_add_multimesh(RID p_item, RID p_mesh, RID p
 	Item::CommandMultiMesh *mm = memnew(Item::CommandMultiMesh);
 	ERR_FAIL_COND(!mm);
 	mm->multimesh = p_mesh;
-	mm->skeleton = p_skeleton;
+	mm->texture = p_texture;
+	mm->normal_map = p_normal_map;
 
+	canvas_item->rect_dirty = true;
 	canvas_item->commands.push_back(mm);
 }
 
@@ -658,14 +816,14 @@ void VisualServerCanvas::canvas_item_set_sort_children_by_y(RID p_item, bool p_e
 
 	canvas_item->sort_y = p_enable;
 }
-void VisualServerCanvas::canvas_item_set_z(RID p_item, int p_z) {
+void VisualServerCanvas::canvas_item_set_z_index(RID p_item, int p_z) {
 
 	ERR_FAIL_COND(p_z < VS::CANVAS_ITEM_Z_MIN || p_z > VS::CANVAS_ITEM_Z_MAX);
 
 	Item *canvas_item = canvas_item_owner.getornull(p_item);
 	ERR_FAIL_COND(!canvas_item);
 
-	canvas_item->z = p_z;
+	canvas_item->z_index = p_z;
 }
 void VisualServerCanvas::canvas_item_set_z_as_relative_to_parent(RID p_item, bool p_enable) {
 
@@ -674,6 +832,15 @@ void VisualServerCanvas::canvas_item_set_z_as_relative_to_parent(RID p_item, boo
 
 	canvas_item->z_relative = p_enable;
 }
+
+void VisualServerCanvas::canvas_item_attach_skeleton(RID p_item, RID p_skeleton) {
+
+	Item *canvas_item = canvas_item_owner.getornull(p_item);
+	ERR_FAIL_COND(!canvas_item);
+
+	canvas_item->skeleton = p_skeleton;
+}
+
 void VisualServerCanvas::canvas_item_set_copy_to_backbuffer(RID p_item, bool p_enable, const Rect2 &p_rect) {
 
 	Item *canvas_item = canvas_item_owner.getornull(p_item);
@@ -880,11 +1047,11 @@ void VisualServerCanvas::canvas_light_set_shadow_buffer_size(RID p_light, int p_
 	RasterizerCanvas::Light *clight = canvas_light_owner.get(p_light);
 	ERR_FAIL_COND(!clight);
 
-	int new_size = nearest_power_of_2(p_size);
+	int new_size = next_power_of_2(p_size);
 	if (new_size == clight->shadow_buffer_size)
 		return;
 
-	clight->shadow_buffer_size = nearest_power_of_2(p_size);
+	clight->shadow_buffer_size = next_power_of_2(p_size);
 
 	if (clight->shadow_buffer.is_valid()) {
 		VSG::storage->free(clight->shadow_buffer);
@@ -914,6 +1081,13 @@ void VisualServerCanvas::canvas_light_set_shadow_color(RID p_light, const Color 
 	ERR_FAIL_COND(!clight);
 
 	clight->shadow_color = p_color;
+}
+
+void VisualServerCanvas::canvas_light_set_shadow_smooth(RID p_light, float p_smooth) {
+
+	RasterizerCanvas::Light *clight = canvas_light_owner.get(p_light);
+	ERR_FAIL_COND(!clight);
+	clight->shadow_smooth = p_smooth;
 }
 
 RID VisualServerCanvas::canvas_light_occluder_create() {
@@ -968,13 +1142,15 @@ void VisualServerCanvas::canvas_light_occluder_set_polygon(RID p_occluder, RID p
 
 	if (occluder->polygon.is_valid()) {
 		LightOccluderPolygon *occluder_poly = canvas_light_occluder_polygon_owner.get(p_polygon);
-		if (!occluder_poly)
+		if (!occluder_poly) {
 			occluder->polygon = RID();
-		ERR_FAIL_COND(!occluder_poly);
-		occluder_poly->owners.insert(occluder);
-		occluder->polygon_buffer = occluder_poly->occluder;
-		occluder->aabb_cache = occluder_poly->aabb;
-		occluder->cull_cache = occluder_poly->cull_mode;
+			ERR_FAIL_COND(!occluder_poly);
+		} else {
+			occluder_poly->owners.insert(occluder);
+			occluder->polygon_buffer = occluder_poly->occluder;
+			occluder->aabb_cache = occluder_poly->aabb;
+			occluder->cull_cache = occluder_poly->cull_mode;
+		}
 	}
 }
 void VisualServerCanvas::canvas_light_occluder_set_transform(RID p_occluder, const Transform2D &p_xform) {

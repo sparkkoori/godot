@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "scroll_container.h"
 #include "os/os.h"
 bool ScrollContainer::clips_input() const {
@@ -40,7 +41,7 @@ Size2 ScrollContainer::get_minimum_size() const {
 
 	for (int i = 0; i < get_child_count(); i++) {
 
-		Control *c = get_child(i)->cast_to<Control>();
+		Control *c = Object::cast_to<Control>(get_child(i));
 		if (!c)
 			continue;
 		if (c->is_set_as_toplevel())
@@ -67,13 +68,19 @@ Size2 ScrollContainer::get_minimum_size() const {
 };
 
 void ScrollContainer::_cancel_drag() {
-	set_fixed_process(false);
+	set_physics_process_internal(false);
 	drag_touching_deaccel = false;
 	drag_touching = false;
 	drag_speed = Vector2();
 	drag_accum = Vector2();
 	last_drag_accum = Vector2();
 	drag_from = Vector2();
+
+	if (beyond_deadzone) {
+		emit_signal("scroll_ended");
+		propagate_notification(NOTIFICATION_SCROLL_END);
+		beyond_deadzone = false;
+	}
 }
 
 void ScrollContainer::_gui_input(const Ref<InputEvent> &p_gui_input) {
@@ -121,13 +128,7 @@ void ScrollContainer::_gui_input(const Ref<InputEvent> &p_gui_input) {
 		if (mb->is_pressed()) {
 
 			if (drag_touching) {
-				set_fixed_process(false);
-				drag_touching_deaccel = false;
-				drag_touching = false;
-				drag_speed = Vector2();
-				drag_accum = Vector2();
-				last_drag_accum = Vector2();
-				drag_from = Vector2();
+				_cancel_drag();
 			}
 
 			if (true) {
@@ -137,9 +138,10 @@ void ScrollContainer::_gui_input(const Ref<InputEvent> &p_gui_input) {
 				drag_from = Vector2(h_scroll->get_value(), v_scroll->get_value());
 				drag_touching = OS::get_singleton()->has_touchscreen_ui_hint();
 				drag_touching_deaccel = false;
+				beyond_deadzone = false;
 				time_since_motion = 0;
 				if (drag_touching) {
-					set_fixed_process(true);
+					set_physics_process_internal(true);
 					time_since_motion = 0;
 				}
 			}
@@ -148,9 +150,7 @@ void ScrollContainer::_gui_input(const Ref<InputEvent> &p_gui_input) {
 			if (drag_touching) {
 
 				if (drag_speed == Vector2()) {
-					drag_touching_deaccel = false;
-					drag_touching = false;
-					set_fixed_process(false);
+					_cancel_drag();
 				} else {
 
 					drag_touching_deaccel = true;
@@ -167,34 +167,55 @@ void ScrollContainer::_gui_input(const Ref<InputEvent> &p_gui_input) {
 
 			Vector2 motion = Vector2(mm->get_relative().x, mm->get_relative().y);
 			drag_accum -= motion;
-			Vector2 diff = drag_from + drag_accum;
 
-			if (scroll_h)
-				h_scroll->set_value(diff.x);
-			else
-				drag_accum.x = 0;
-			if (scroll_v)
-				v_scroll->set_value(diff.y);
-			else
-				drag_accum.y = 0;
-			time_since_motion = 0;
+			if (beyond_deadzone || scroll_h && Math::abs(drag_accum.x) > deadzone || scroll_v && Math::abs(drag_accum.y) > deadzone) {
+				if (!beyond_deadzone) {
+					propagate_notification(NOTIFICATION_SCROLL_BEGIN);
+					emit_signal("scroll_started");
+
+					beyond_deadzone = true;
+					// resetting drag_accum here ensures smooth scrolling after reaching deadzone
+					drag_accum = -motion;
+				}
+				Vector2 diff = drag_from + drag_accum;
+				if (scroll_h)
+					h_scroll->set_value(diff.x);
+				else
+					drag_accum.x = 0;
+				if (scroll_v)
+					v_scroll->set_value(diff.y);
+				else
+					drag_accum.y = 0;
+				time_since_motion = 0;
+			}
+		}
+	}
+
+	Ref<InputEventPanGesture> pan_gesture = p_gui_input;
+	if (pan_gesture.is_valid()) {
+
+		if (h_scroll->is_visible_in_tree()) {
+			h_scroll->set_value(h_scroll->get_value() + h_scroll->get_page() * pan_gesture->get_delta().x / 8);
+		}
+		if (v_scroll->is_visible_in_tree()) {
+			v_scroll->set_value(v_scroll->get_value() + v_scroll->get_page() * pan_gesture->get_delta().y / 8);
 		}
 	}
 }
 
-void ScrollContainer::_update_scrollbar_pos() {
+void ScrollContainer::_update_scrollbar_position() {
 
 	Size2 hmin = h_scroll->get_combined_minimum_size();
 	Size2 vmin = v_scroll->get_combined_minimum_size();
 
-	v_scroll->set_anchor_and_margin(MARGIN_LEFT, ANCHOR_END, vmin.width);
+	v_scroll->set_anchor_and_margin(MARGIN_LEFT, ANCHOR_END, -vmin.width);
 	v_scroll->set_anchor_and_margin(MARGIN_RIGHT, ANCHOR_END, 0);
 	v_scroll->set_anchor_and_margin(MARGIN_TOP, ANCHOR_BEGIN, 0);
 	v_scroll->set_anchor_and_margin(MARGIN_BOTTOM, ANCHOR_END, 0);
 
 	h_scroll->set_anchor_and_margin(MARGIN_LEFT, ANCHOR_BEGIN, 0);
 	h_scroll->set_anchor_and_margin(MARGIN_RIGHT, ANCHOR_END, 0);
-	h_scroll->set_anchor_and_margin(MARGIN_TOP, ANCHOR_END, hmin.height);
+	h_scroll->set_anchor_and_margin(MARGIN_TOP, ANCHOR_END, -hmin.height);
 	h_scroll->set_anchor_and_margin(MARGIN_BOTTOM, ANCHOR_END, 0);
 
 	h_scroll->raise();
@@ -205,7 +226,7 @@ void ScrollContainer::_notification(int p_what) {
 
 	if (p_what == NOTIFICATION_ENTER_TREE || p_what == NOTIFICATION_THEME_CHANGED) {
 
-		call_deferred("_update_scrollbar_pos");
+		call_deferred("_update_scrollbar_position");
 	};
 
 	if (p_what == NOTIFICATION_SORT_CHILDREN) {
@@ -220,7 +241,7 @@ void ScrollContainer::_notification(int p_what) {
 
 		for (int i = 0; i < get_child_count(); i++) {
 
-			Control *c = get_child(i)->cast_to<Control>();
+			Control *c = Object::cast_to<Control>(get_child(i));
 			if (!c)
 				continue;
 			if (c->is_set_as_toplevel())
@@ -257,14 +278,14 @@ void ScrollContainer::_notification(int p_what) {
 		update_scrollbars();
 	}
 
-	if (p_what == NOTIFICATION_FIXED_PROCESS) {
+	if (p_what == NOTIFICATION_INTERNAL_PHYSICS_PROCESS) {
 
 		if (drag_touching) {
 
 			if (drag_touching_deaccel) {
 
 				Vector2 pos = Vector2(h_scroll->get_value(), v_scroll->get_value());
-				pos += drag_speed * get_fixed_process_delta_time();
+				pos += drag_speed * get_physics_process_delta_time();
 
 				bool turnoff_h = false;
 				bool turnoff_v = false;
@@ -294,7 +315,7 @@ void ScrollContainer::_notification(int p_what) {
 
 				float sgn_x = drag_speed.x < 0 ? -1 : 1;
 				float val_x = Math::abs(drag_speed.x);
-				val_x -= 1000 * get_fixed_process_delta_time();
+				val_x -= 1000 * get_physics_process_delta_time();
 
 				if (val_x < 0) {
 					turnoff_h = true;
@@ -302,7 +323,7 @@ void ScrollContainer::_notification(int p_what) {
 
 				float sgn_y = drag_speed.y < 0 ? -1 : 1;
 				float val_y = Math::abs(drag_speed.y);
-				val_y -= 1000 * get_fixed_process_delta_time();
+				val_y -= 1000 * get_physics_process_delta_time();
 
 				if (val_y < 0) {
 					turnoff_v = true;
@@ -311,9 +332,7 @@ void ScrollContainer::_notification(int p_what) {
 				drag_speed = Vector2(sgn_x * val_x, sgn_y * val_y);
 
 				if (turnoff_h && turnoff_v) {
-					set_fixed_process(false);
-					drag_touching = false;
-					drag_touching_deaccel = false;
+					_cancel_drag();
 				}
 
 			} else {
@@ -322,10 +341,10 @@ void ScrollContainer::_notification(int p_what) {
 
 					Vector2 diff = drag_accum - last_drag_accum;
 					last_drag_accum = drag_accum;
-					drag_speed = diff / get_fixed_process_delta_time();
+					drag_speed = diff / get_physics_process_delta_time();
 				}
 
-				time_since_motion += get_fixed_process_delta_time();
+				time_since_motion += get_physics_process_delta_time();
 			}
 		}
 	}
@@ -343,19 +362,20 @@ void ScrollContainer::update_scrollbars() {
 	if (!scroll_v || min.height <= size.height - hmin.height) {
 
 		v_scroll->hide();
+		v_scroll->set_max(0);
 		scroll.y = 0;
 	} else {
 
 		v_scroll->show();
+		v_scroll->set_max(min.height);
+		v_scroll->set_page(size.height - hmin.height);
 		scroll.y = v_scroll->get_value();
 	}
-
-	v_scroll->set_max(min.height);
-	v_scroll->set_page(size.height - hmin.height);
 
 	if (!scroll_h || min.width <= size.width - vmin.width) {
 
 		h_scroll->hide();
+		h_scroll->set_max(0);
 		scroll.x = 0;
 	} else {
 
@@ -417,13 +437,21 @@ void ScrollContainer::set_h_scroll(int p_pos) {
 	_cancel_drag();
 }
 
+int ScrollContainer::get_deadzone() const {
+	return deadzone;
+}
+
+void ScrollContainer::set_deadzone(int p_deadzone) {
+	deadzone = p_deadzone;
+}
+
 String ScrollContainer::get_configuration_warning() const {
 
 	int found = 0;
 
 	for (int i = 0; i < get_child_count(); i++) {
 
-		Control *c = get_child(i)->cast_to<Control>();
+		Control *c = Object::cast_to<Control>(get_child(i));
 		if (!c)
 			continue;
 		if (c->is_set_as_toplevel())
@@ -448,15 +476,25 @@ void ScrollContainer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("is_h_scroll_enabled"), &ScrollContainer::is_h_scroll_enabled);
 	ClassDB::bind_method(D_METHOD("set_enable_v_scroll", "enable"), &ScrollContainer::set_enable_v_scroll);
 	ClassDB::bind_method(D_METHOD("is_v_scroll_enabled"), &ScrollContainer::is_v_scroll_enabled);
-	ClassDB::bind_method(D_METHOD("_update_scrollbar_pos"), &ScrollContainer::_update_scrollbar_pos);
-	ClassDB::bind_method(D_METHOD("set_h_scroll", "val"), &ScrollContainer::set_h_scroll);
+	ClassDB::bind_method(D_METHOD("_update_scrollbar_position"), &ScrollContainer::_update_scrollbar_position);
+	ClassDB::bind_method(D_METHOD("set_h_scroll", "value"), &ScrollContainer::set_h_scroll);
 	ClassDB::bind_method(D_METHOD("get_h_scroll"), &ScrollContainer::get_h_scroll);
-	ClassDB::bind_method(D_METHOD("set_v_scroll", "val"), &ScrollContainer::set_v_scroll);
+	ClassDB::bind_method(D_METHOD("set_v_scroll", "value"), &ScrollContainer::set_v_scroll);
 	ClassDB::bind_method(D_METHOD("get_v_scroll"), &ScrollContainer::get_v_scroll);
+	ClassDB::bind_method(D_METHOD("set_deadzone", "deadzone"), &ScrollContainer::set_deadzone);
+	ClassDB::bind_method(D_METHOD("get_deadzone"), &ScrollContainer::get_deadzone);
+
+	ADD_SIGNAL(MethodInfo("scroll_started"));
+	ADD_SIGNAL(MethodInfo("scroll_ended"));
 
 	ADD_GROUP("Scroll", "scroll_");
-	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "scroll_horizontal"), "set_enable_h_scroll", "is_h_scroll_enabled");
-	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "scroll_vertical"), "set_enable_v_scroll", "is_v_scroll_enabled");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "scroll_horizontal_enabled"), "set_enable_h_scroll", "is_h_scroll_enabled");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "scroll_horizontal"), "set_h_scroll", "get_h_scroll");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "scroll_vertical_enabled"), "set_enable_v_scroll", "is_v_scroll_enabled");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "scroll_vertical"), "set_v_scroll", "get_v_scroll");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "scroll_deadzone"), "set_deadzone", "get_deadzone");
+
+	GLOBAL_DEF("gui/common/default_scroll_deadzone", 0);
 };
 
 ScrollContainer::ScrollContainer() {
@@ -475,8 +513,11 @@ ScrollContainer::ScrollContainer() {
 	drag_speed = Vector2();
 	drag_touching = false;
 	drag_touching_deaccel = false;
+	beyond_deadzone = false;
 	scroll_h = true;
 	scroll_v = true;
+
+	deadzone = GLOBAL_GET("gui/common/default_scroll_deadzone");
 
 	set_clip_contents(true);
 };

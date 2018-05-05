@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "item_list_editor_plugin.h"
 
 #include "io/resource_loader.h"
@@ -41,9 +42,18 @@ bool ItemListPlugin::_set(const StringName &p_name, const Variant &p_value) {
 		set_item_text(idx, p_value);
 	else if (what == "icon")
 		set_item_icon(idx, p_value);
-	else if (what == "checkable")
-		set_item_checkable(idx, p_value);
-	else if (what == "checked")
+	else if (what == "checkable") {
+		// This keeps compatibility to/from versions where this property was a boolean, before radio buttons
+		switch ((int)p_value) {
+			case 0:
+			case 1:
+				set_item_checkable(idx, p_value);
+				break;
+			case 2:
+				set_item_radio_checkable(idx, true);
+				break;
+		}
+	} else if (what == "checked")
 		set_item_checked(idx, p_value);
 	else if (what == "id")
 		set_item_id(idx, p_value);
@@ -67,9 +77,14 @@ bool ItemListPlugin::_get(const StringName &p_name, Variant &r_ret) const {
 		r_ret = get_item_text(idx);
 	else if (what == "icon")
 		r_ret = get_item_icon(idx);
-	else if (what == "checkable")
-		r_ret = is_item_checkable(idx);
-	else if (what == "checked")
+	else if (what == "checkable") {
+		// This keeps compatibility to/from versions where this property was a boolean, before radio buttons
+		if (!is_item_checkable(idx)) {
+			r_ret = 0;
+		} else {
+			r_ret = is_item_radio_checkable(idx) ? 2 : 1;
+		}
+	} else if (what == "checked")
 		r_ret = is_item_checked(idx);
 	else if (what == "id")
 		r_ret = get_item_id(idx);
@@ -94,7 +109,7 @@ void ItemListPlugin::_get_property_list(List<PropertyInfo> *p_list) const {
 		int flags = get_flags();
 
 		if (flags & FLAG_CHECKABLE) {
-			p_list->push_back(PropertyInfo(Variant::BOOL, base + "checkable"));
+			p_list->push_back(PropertyInfo(Variant::BOOL, base + "checkable", PROPERTY_HINT_ENUM, "No,As checkbox,As radio button"));
 			p_list->push_back(PropertyInfo(Variant::BOOL, base + "checked"));
 		}
 
@@ -115,7 +130,7 @@ void ItemListPlugin::_get_property_list(List<PropertyInfo> *p_list) const {
 
 void ItemListOptionButtonPlugin::set_object(Object *p_object) {
 
-	ob = p_object->cast_to<OptionButton>();
+	ob = Object::cast_to<OptionButton>(p_object);
 }
 
 bool ItemListOptionButtonPlugin::handles(Object *p_object) const {
@@ -155,9 +170,9 @@ ItemListOptionButtonPlugin::ItemListOptionButtonPlugin() {
 void ItemListPopupMenuPlugin::set_object(Object *p_object) {
 
 	if (p_object->is_class("MenuButton"))
-		pp = p_object->cast_to<MenuButton>()->get_popup();
+		pp = Object::cast_to<MenuButton>(p_object)->get_popup();
 	else
-		pp = p_object->cast_to<PopupMenu>();
+		pp = Object::cast_to<PopupMenu>(p_object);
 }
 
 bool ItemListPopupMenuPlugin::handles(Object *p_object) const {
@@ -193,6 +208,45 @@ ItemListPopupMenuPlugin::ItemListPopupMenuPlugin() {
 }
 
 ///////////////////////////////////////////////////////////////
+
+void ItemListItemListPlugin::set_object(Object *p_object) {
+
+	pp = Object::cast_to<ItemList>(p_object);
+}
+
+bool ItemListItemListPlugin::handles(Object *p_object) const {
+
+	return p_object->is_class("ItemList");
+}
+
+int ItemListItemListPlugin::get_flags() const {
+
+	return FLAG_ICON | FLAG_ENABLE;
+}
+
+void ItemListItemListPlugin::add_item() {
+
+	pp->add_item(vformat(TTR("Item %d"), pp->get_item_count()));
+	_change_notify();
+}
+
+int ItemListItemListPlugin::get_item_count() const {
+
+	return pp->get_item_count();
+}
+
+void ItemListItemListPlugin::erase(int p_idx) {
+
+	pp->remove_item(p_idx);
+	_change_notify();
+}
+
+ItemListItemListPlugin::ItemListItemListPlugin() {
+
+	pp = NULL;
+}
+
+///////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////
 
@@ -207,7 +261,7 @@ void ItemListEditor::_node_removed(Node *p_node) {
 
 void ItemListEditor::_notification(int p_notification) {
 
-	if (p_notification == NOTIFICATION_ENTER_TREE) {
+	if (p_notification == NOTIFICATION_ENTER_TREE || p_notification == NOTIFICATION_THEME_CHANGED) {
 
 		add_button->set_icon(get_icon("Add", "EditorIcons"));
 		del_button->set_icon(get_icon("Remove", "EditorIcons"));
@@ -345,7 +399,7 @@ ItemListEditor::~ItemListEditor() {
 
 void ItemListEditorPlugin::edit(Object *p_object) {
 
-	item_list_editor->edit(p_object->cast_to<Node>());
+	item_list_editor->edit(Object::cast_to<Node>(p_object));
 }
 
 bool ItemListEditorPlugin::handles(Object *p_object) const {
@@ -373,6 +427,7 @@ ItemListEditorPlugin::ItemListEditorPlugin(EditorNode *p_node) {
 	item_list_editor->hide();
 	item_list_editor->add_plugin(memnew(ItemListOptionButtonPlugin));
 	item_list_editor->add_plugin(memnew(ItemListPopupMenuPlugin));
+	item_list_editor->add_plugin(memnew(ItemListItemListPlugin));
 }
 
 ItemListEditorPlugin::~ItemListEditorPlugin() {

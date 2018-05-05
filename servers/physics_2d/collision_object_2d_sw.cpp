@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "collision_object_2d_sw.h"
 #include "space_2d_sw.h"
 
@@ -37,7 +38,8 @@ void CollisionObject2DSW::add_shape(Shape2DSW *p_shape, const Transform2D &p_tra
 	s.xform = p_transform;
 	s.xform_inv = s.xform.affine_inverse();
 	s.bpid = 0; //needs update
-	s.trigger = false;
+	s.disabled = false;
+	s.one_way_collision = false;
 	shapes.push_back(s);
 	p_shape->add_owner(this);
 	_update_shapes();
@@ -71,6 +73,27 @@ void CollisionObject2DSW::set_shape_transform(int p_index, const Transform2D &p_
 	_shapes_changed();
 }
 
+void CollisionObject2DSW::set_shape_as_disabled(int p_idx, bool p_disabled) {
+	ERR_FAIL_INDEX(p_idx, shapes.size());
+
+	CollisionObject2DSW::Shape &shape = shapes[p_idx];
+	if (shape.disabled == p_disabled)
+		return;
+
+	shape.disabled = p_disabled;
+
+	if (!space)
+		return;
+
+	if (p_disabled && shape.bpid != 0) {
+		space->get_broadphase()->remove(shape.bpid);
+		shape.bpid = 0;
+		_update_shapes();
+	} else if (!p_disabled && shape.bpid == 0) {
+		_update_shapes(); // automatically adds shape with bpid == 0
+	}
+}
+
 void CollisionObject2DSW::remove_shape(Shape2DSW *p_shape) {
 
 	//remove a shape, all the times it appears
@@ -98,6 +121,7 @@ void CollisionObject2DSW::remove_shape(int p_index) {
 	shapes[p_index].shape->remove_owner(this);
 	shapes.remove(p_index);
 
+	_update_shapes();
 	_shapes_changed();
 }
 
@@ -136,6 +160,10 @@ void CollisionObject2DSW::_update_shapes() {
 	for (int i = 0; i < shapes.size(); i++) {
 
 		Shape &s = shapes[i];
+
+		if (s.disabled)
+			continue;
+
 		if (s.bpid == 0) {
 			s.bpid = space->get_broadphase()->create(this, i);
 			space->get_broadphase()->set_static(s.bpid, _static);
@@ -160,6 +188,9 @@ void CollisionObject2DSW::_update_shapes_with_motion(const Vector2 &p_motion) {
 	for (int i = 0; i < shapes.size(); i++) {
 
 		Shape &s = shapes[i];
+		if (s.disabled)
+			continue;
+
 		if (s.bpid == 0) {
 			s.bpid = space->get_broadphase()->create(this, i);
 			space->get_broadphase()->set_static(s.bpid, _static);
@@ -214,6 +245,6 @@ CollisionObject2DSW::CollisionObject2DSW(Type p_type) {
 	space = NULL;
 	instance_id = 0;
 	collision_mask = 1;
-	layer_mask = 1;
+	collision_layer = 1;
 	pickable = true;
 }

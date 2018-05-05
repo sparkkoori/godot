@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "texture_loader_pvr.h"
 #include "PvrTcEncoder.h"
 #include "RgbaBitmap.h"
@@ -74,15 +75,11 @@ RES ResourceFormatPVR::load(const String &p_path, const String &p_original_path,
 	uint32_t mipmaps = f->get_32();
 	uint32_t flags = f->get_32();
 	uint32_t surfsize = f->get_32();
-	uint32_t bpp = f->get_32();
-	uint32_t rmask = f->get_32();
-	uint32_t gmask = f->get_32();
-	uint32_t bmask = f->get_32();
-	uint32_t amask = f->get_32();
+	f->seek(f->get_position() + 20); // bpp, rmask, gmask, bmask, amask
 	uint8_t pvrid[5] = { 0, 0, 0, 0, 0 };
 	f->get_buffer(pvrid, 4);
 	ERR_FAIL_COND_V(String((char *)pvrid) != "PVR!", RES());
-	uint32_t surfcount = f->get_32();
+	f->get_32(); // surfcount
 
 	/*
 	print_line("height: "+itos(height));
@@ -243,11 +240,11 @@ ResourceFormatPVR::ResourceFormatPVR() {
 	Image::_image_compress_pvrtc2_func = _compress_pvrtc4;
 }
 
-/////////////////////////////////////////////////////////
+	/////////////////////////////////////////////////////////
 
-//PVRTC decompressor, Based on PVRTC decompressor by IMGTEC.
+	//PVRTC decompressor, Based on PVRTC decompressor by IMGTEC.
 
-/////////////////////////////////////////////////////////
+	/////////////////////////////////////////////////////////
 
 #define PT_INDEX 2
 #define BLK_Y_SIZE 4
@@ -539,8 +536,8 @@ static void decompress_pvrtc(PVRTCBlock *p_comp_img, const int p_2bit, const int
 
 	int p_x, p_y;
 
-	int p_modulation[8][16];
-	int p_modulation_modes[8][16];
+	int p_modulation[8][16] = { { 0 } };
+	int p_modulation_modes[8][16] = { { 0 } };
 
 	int Mod, DoPT;
 

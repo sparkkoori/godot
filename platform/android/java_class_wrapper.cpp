@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "java_class_wrapper.h"
 #include "thread_jandroid.h"
 
@@ -59,7 +60,7 @@ bool JavaClass::_call_method(JavaObject *p_instance, const StringName &p_method,
 			r_error.argument = pc;
 			continue;
 		}
-		uint32_t *ptypes = E->get().param_types.ptr();
+		uint32_t *ptypes = E->get().param_types.ptrw();
 		bool valid = true;
 
 		for (int i = 0; i < pc; i++) {
@@ -112,7 +113,7 @@ bool JavaClass::_call_method(JavaObject *p_instance, const StringName &p_method,
 
 						Ref<Reference> ref = *p_args[i];
 						if (!ref.is_null()) {
-							if (ref->cast_to<JavaObject>()) {
+							if (Object::cast_to<JavaObject>(ref.ptr())) {
 
 								Ref<JavaObject> jo = ref;
 								//could be faster
@@ -190,7 +191,7 @@ bool JavaClass::_call_method(JavaObject *p_instance, const StringName &p_method,
 				argv[i].i = *p_args[i];
 			} break;
 			case ARG_TYPE_LONG: {
-				argv[i].j = *p_args[i];
+				argv[i].j = (int64_t)*p_args[i];
 			} break;
 			case ARG_TYPE_FLOAT: {
 				argv[i].f = *p_args[i];
@@ -350,7 +351,7 @@ bool JavaClass::_call_method(JavaObject *p_instance, const StringName &p_method,
 				Array arr = *p_args[i];
 				jlongArray a = env->NewLongArray(arr.size());
 				for (int j = 0; j < arr.size(); j++) {
-					jlong val = arr[j];
+					jlong val = (int64_t)arr[j];
 					env->SetLongArrayRegion(a, j, 1, &val);
 				}
 				argv[i].l = a;
@@ -460,9 +461,9 @@ bool JavaClass::_call_method(JavaObject *p_instance, const StringName &p_method,
 		case ARG_TYPE_LONG: {
 
 			if (method->_static) {
-				ret = env->CallStaticLongMethodA(_class, method->method, argv);
+				ret = (int64_t)env->CallStaticLongMethodA(_class, method->method, argv);
 			} else {
-				ret = env->CallLongMethodA(p_instance->instance, method->method, argv);
+				ret = (int64_t)env->CallLongMethodA(p_instance->instance, method->method, argv);
 			}
 
 		} break;
@@ -546,7 +547,7 @@ JavaObject::~JavaObject() {
 
 void JavaClassWrapper::_bind_methods() {
 
-	ClassDB::bind_method(D_METHOD("wrap:JavaClass", "name"), &JavaClassWrapper::wrap);
+	ClassDB::bind_method(D_METHOD("wrap", "name"), &JavaClassWrapper::wrap);
 }
 
 bool JavaClassWrapper::_get_type_sig(JNIEnv *env, jobject obj, uint32_t &sig, String &strsig) {
@@ -680,7 +681,7 @@ bool JavaClass::_convert_object_to_variant(JNIEnv *env, jobject obj, Variant &va
 		} break;
 		case ARG_TYPE_LONG | ARG_NUMBER_CLASS_BIT: {
 
-			var = env->CallLongMethod(obj, JavaClassWrapper::singleton->Long_longValue);
+			var = (int64_t)env->CallLongMethod(obj, JavaClassWrapper::singleton->Long_longValue);
 			return true;
 
 		} break;
@@ -802,7 +803,7 @@ bool JavaClass::_convert_object_to_variant(JNIEnv *env, jobject obj, Variant &va
 
 				jlong val;
 				env->GetLongArrayRegion((jlongArray)arr, 0, 1, &val);
-				ret.push_back(val);
+				ret.push_back((int64_t)val);
 			}
 
 			var = ret;
@@ -1116,7 +1117,7 @@ Ref<JavaClass> JavaClassWrapper::wrap(const String &p_class) {
 		}
 
 		if (!valid) {
-			print_line("Method Can't be bound (unsupported arguments): " + p_class + "::" + str_method);
+			print_line("Method can't be bound (unsupported arguments): " + p_class + "::" + str_method);
 			env->DeleteLocalRef(obj);
 			env->DeleteLocalRef(param_types);
 			continue;
@@ -1129,7 +1130,7 @@ Ref<JavaClass> JavaClassWrapper::wrap(const String &p_class) {
 		String strsig;
 		uint32_t sig = 0;
 		if (!_get_type_sig(env, return_type, sig, strsig)) {
-			print_line("Method Can't be bound (unsupported return type): " + p_class + "::" + str_method);
+			print_line("Method can't be bound (unsupported return type): " + p_class + "::" + str_method);
 			env->DeleteLocalRef(obj);
 			env->DeleteLocalRef(param_types);
 			env->DeleteLocalRef(return_type);
@@ -1138,8 +1139,6 @@ Ref<JavaClass> JavaClassWrapper::wrap(const String &p_class) {
 
 		signature += strsig;
 		mi.return_type = sig;
-
-		print_line("METHOD: " + str_method + " SIG: " + signature + " static: " + itos(mi._static));
 
 		bool discard = false;
 
@@ -1172,11 +1171,9 @@ Ref<JavaClass> JavaClassWrapper::wrap(const String &p_class) {
 
 			if (new_likeliness > existing_likeliness) {
 				java_class->methods[str_method].erase(E);
-				print_line("replace old");
 				break;
 			} else {
 				discard = true;
-				print_line("old is better");
 			}
 		}
 

@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef VIEWPORT_H
 #define VIEWPORT_H
 
@@ -58,6 +59,8 @@ class ViewportTexture : public Texture {
 	friend class Viewport;
 	Viewport *vp;
 
+	RID proxy;
+
 protected:
 	static void _bind_methods();
 
@@ -76,6 +79,8 @@ public:
 
 	virtual void set_flags(uint32_t p_flags);
 	virtual uint32_t get_flags() const;
+
+	virtual Ref<Image> get_data() const;
 
 	ViewportTexture();
 	~ViewportTexture();
@@ -113,6 +118,38 @@ public:
 		MSAA_16X,
 	};
 
+	enum Usage {
+		USAGE_2D,
+		USAGE_2D_NO_SAMPLING,
+		USAGE_3D,
+		USAGE_3D_NO_EFFECTS,
+	};
+
+	enum RenderInfo {
+
+		RENDER_INFO_OBJECTS_IN_FRAME,
+		RENDER_INFO_VERTICES_IN_FRAME,
+		RENDER_INFO_MATERIAL_CHANGES_IN_FRAME,
+		RENDER_INFO_SHADER_CHANGES_IN_FRAME,
+		RENDER_INFO_SURFACE_CHANGES_IN_FRAME,
+		RENDER_INFO_DRAW_CALLS_IN_FRAME,
+		RENDER_INFO_MAX
+	};
+
+	enum DebugDraw {
+		DEBUG_DRAW_DISABLED,
+		DEBUG_DRAW_UNSHADED,
+		DEBUG_DRAW_OVERDRAW,
+		DEBUG_DRAW_WIREFRAME,
+	};
+
+	enum ClearMode {
+
+		CLEAR_MODE_ALWAYS,
+		CLEAR_MODE_NEVER,
+		CLEAR_MODE_ONLY_NEXT_FRAME
+	};
+
 private:
 	friend class ViewportTexture;
 
@@ -120,6 +157,8 @@ private:
 
 	Listener *listener;
 	Set<Listener *> listeners;
+
+	bool arvr;
 
 	Camera *camera;
 	Set<Camera *> cameras;
@@ -153,9 +192,11 @@ private:
 
 	bool transparent_bg;
 	bool vflip;
-	bool clear_on_new_frame;
+	ClearMode clear_mode;
 	bool filter;
 	bool gen_mipmaps;
+
+	bool snap_controls_to_pixels;
 
 	bool physics_object_picking;
 	List<Ref<InputEvent> > physics_picking_events;
@@ -164,12 +205,6 @@ private:
 	Vector2 physics_last_mousepos;
 	void _test_new_mouseover(ObjectID new_collider);
 	Map<ObjectID, uint64_t> physics_2d_mouseover;
-
-	void _update_rect();
-
-	void _parent_resized();
-	void _parent_draw();
-	void _parent_visibility_changed();
 
 	Ref<World2D> world_2d;
 	Ref<World> world;
@@ -195,6 +230,10 @@ private:
 	RID texture_rid;
 	uint32_t texture_flags;
 
+	DebugDraw debug_draw;
+
+	Usage usage;
+
 	int shadow_atlas_size;
 	ShadowAtlasQuadrantSubdiv shadow_atlas_quadrant_subdiv[4];
 
@@ -209,6 +248,7 @@ private:
 
 		bool key_event_accepted;
 		Control *mouse_focus;
+		Control *mouse_click_grabber;
 		int mouse_focus_button;
 		Control *key_focus;
 		Control *mouse_over;
@@ -224,7 +264,6 @@ private:
 		float tooltip_timer;
 		float tooltip_delay;
 		List<Control *> modal_stack;
-		unsigned int cancelled_input_ID;
 		Transform2D focus_inv_xform;
 		bool subwindow_order_dirty;
 		List<Control *> subwindows;
@@ -249,9 +288,6 @@ private:
 	void update_worlds();
 
 	_FORCE_INLINE_ Transform2D _get_input_pre_xform() const;
-
-	void _vp_enter_tree();
-	void _vp_exit_tree();
 
 	void _vp_input(const Ref<InputEvent> &p_ev);
 	void _vp_input_text(const String &p_text);
@@ -288,6 +324,7 @@ private:
 	bool _gui_control_has_focus(const Control *p_control);
 	void _gui_control_grab_focus(Control *p_control);
 	void _gui_grab_click_focus(Control *p_control);
+	void _post_gui_grab_click_focus();
 	void _gui_accept_event();
 
 	Control *_gui_get_focus_owner();
@@ -317,6 +354,9 @@ protected:
 public:
 	Listener *get_listener() const;
 	Camera *get_camera() const;
+
+	void set_use_arvr(bool p_use_arvr);
+	bool use_arvr();
 
 	void set_as_audio_listener(bool p_enable);
 	bool is_audio_listener() const;
@@ -359,9 +399,8 @@ public:
 	void set_vflip(bool p_enable);
 	bool get_vflip() const;
 
-	void set_clear_on_new_frame(bool p_enable);
-	bool get_clear_on_new_frame() const;
-	void clear();
+	void set_clear_mode(ClearMode p_mode);
+	ClearMode get_clear_mode() const;
 
 	void set_update_mode(UpdateMode p_mode);
 	UpdateMode get_update_mode() const;
@@ -381,9 +420,6 @@ public:
 
 	Vector2 get_camera_coords(const Vector2 &p_viewport_coords) const;
 	Vector2 get_camera_rect_size() const;
-
-	void queue_screen_capture();
-	Ref<Image> get_screen_capture() const;
 
 	void set_use_own_world(bool p_world);
 	bool is_using_own_world() const;
@@ -416,6 +452,17 @@ public:
 
 	virtual String get_configuration_warning() const;
 
+	void set_usage(Usage p_usage);
+	Usage get_usage() const;
+
+	void set_debug_draw(DebugDraw p_debug_draw);
+	DebugDraw get_debug_draw() const;
+
+	int get_render_info(RenderInfo p_info);
+
+	void set_snap_controls_to_pixels(bool p_enable);
+	bool is_snap_controls_to_pixels_enabled() const;
+
 	Viewport();
 	~Viewport();
 };
@@ -423,5 +470,9 @@ public:
 VARIANT_ENUM_CAST(Viewport::UpdateMode);
 VARIANT_ENUM_CAST(Viewport::ShadowAtlasQuadrantSubdiv);
 VARIANT_ENUM_CAST(Viewport::MSAA);
+VARIANT_ENUM_CAST(Viewport::Usage);
+VARIANT_ENUM_CAST(Viewport::DebugDraw);
+VARIANT_ENUM_CAST(Viewport::ClearMode);
+VARIANT_ENUM_CAST(Viewport::RenderInfo);
 
 #endif

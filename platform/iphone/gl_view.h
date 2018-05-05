@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -83,6 +83,8 @@
 @property(strong, nonatomic) MPMoviePlayerController *moviePlayerController;
 @property(strong, nonatomic) UIWindow *backgroundWindow;
 
+@property(nonatomic) UITextAutocorrectionType autocorrectionType;
+
 - (void)startAnimation;
 - (void)stopAnimation;
 - (void)drawView;
@@ -100,6 +102,8 @@
 - (void)destroyFramebuffer;
 
 - (void)audioRouteChangeListenerCallback:(NSNotification *)notification;
+- (void)keyboardOnScreen:(NSNotification *)notification;
+- (void)keyboardHidden:(NSNotification *)notification;
 
 @property NSTimeInterval animationInterval;
 @property(nonatomic, assign) BOOL useCADisplayLink;

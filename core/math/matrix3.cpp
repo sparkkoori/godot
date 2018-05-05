@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,10 +27,11 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "matrix3.h"
 #include "math_funcs.h"
 #include "os/copymem.h"
-
+#include "print_string.h"
 #define cofac(row1, col1, row2, col2) \
 	(elements[row1][col1] * elements[row2][col2] - elements[row1][col2] * elements[row2][col1])
 
@@ -105,6 +106,13 @@ bool Basis::is_orthogonal() const {
 	Basis m = (*this) * transposed();
 
 	return is_equal_approx(id, m);
+}
+
+bool Basis::is_diagonal() const {
+	return (
+			Math::is_equal_approx(elements[0][1], 0) && Math::is_equal_approx(elements[0][2], 0) &&
+			Math::is_equal_approx(elements[1][0], 0) && Math::is_equal_approx(elements[1][2], 0) &&
+			Math::is_equal_approx(elements[2][0], 0) && Math::is_equal_approx(elements[2][1], 0));
 }
 
 bool Basis::is_rotation() const {
@@ -221,12 +229,45 @@ void Basis::scale(const Vector3 &p_scale) {
 }
 
 Basis Basis::scaled(const Vector3 &p_scale) const {
-
 	Basis m = *this;
 	m.scale(p_scale);
 	return m;
 }
 
+void Basis::scale_local(const Vector3 &p_scale) {
+	// performs a scaling in object-local coordinate system:
+	// M -> (M.S.Minv).M = M.S.
+	*this = scaled_local(p_scale);
+}
+
+Basis Basis::scaled_local(const Vector3 &p_scale) const {
+	Basis b;
+	b.set_scale(p_scale);
+
+	return (*this) * b;
+}
+
+void Basis::set_scale(const Vector3 &p_scale) {
+
+	set_axis(0, get_axis(0).normalized() * p_scale.x);
+	set_axis(1, get_axis(1).normalized() * p_scale.y);
+	set_axis(2, get_axis(2).normalized() * p_scale.z);
+}
+
+Vector3 Basis::get_scale_abs() const {
+
+	return Vector3(
+			Vector3(elements[0][0], elements[1][0], elements[2][0]).length(),
+			Vector3(elements[0][1], elements[1][1], elements[2][1]).length(),
+			Vector3(elements[0][2], elements[1][2], elements[2][2]).length());
+}
+
+Vector3 Basis::get_scale_local() const {
+	real_t det_sign = determinant() > 0 ? 1 : -1;
+	return det_sign * Vector3(elements[0].length(), elements[1].length(), elements[2].length());
+}
+
+// get_scale works with get_rotation, use get_scale_abs if you need to enforce positive signature.
 Vector3 Basis::get_scale() const {
 	// FIXME: We are assuming M = R.S (R is rotation and S is scaling), and use polar decomposition to extract R and S.
 	// A polar decomposition is M = O.P, where O is an orthogonal matrix (meaning rotation and reflection) and
@@ -241,12 +282,13 @@ Vector3 Basis::get_scale() const {
 	// This may lead to confusion for some users though.
 	//
 	// The convention we use here is to absorb the sign flip into the scaling matrix.
-	// The same convention is also used in other similar functions such as set_scale,
-	// get_rotation_axis_angle, get_rotation, set_rotation_axis_angle, set_rotation_euler, ...
+	// The same convention is also used in other similar functions such as get_rotation_axis_angle, get_rotation, ...
 	//
 	// A proper way to get rid of this issue would be to store the scaling values (or at least their signs)
 	// as a part of Basis. However, if we go that path, we need to disable direct (write) access to the
 	// matrix elements.
+	//
+	// The rotation part of this decomposition is returned by get_rotation* functions.
 	real_t det_sign = determinant() > 0 ? 1 : -1;
 	return det_sign * Vector3(
 							  Vector3(elements[0][0], elements[1][0], elements[2][0]).length(),
@@ -254,15 +296,24 @@ Vector3 Basis::get_scale() const {
 							  Vector3(elements[0][2], elements[1][2], elements[2][2]).length());
 }
 
-// Sets scaling while preserving rotation.
-// This requires some care when working with matrices with negative determinant,
-// since we're using a particular convention for "polar" decomposition in get_scale and get_rotation.
-// For details, see the explanation in get_scale.
-void Basis::set_scale(const Vector3 &p_scale) {
-	Vector3 e = get_euler();
-	Basis(); // reset to identity
-	scale(p_scale);
-	rotate(e);
+// Decomposes a Basis into a rotation-reflection matrix (an element of the group O(3)) and a positive scaling matrix as B = O.S.
+// Returns the rotation-reflection matrix via reference argument, and scaling information is returned as a Vector3.
+// This (internal) function is too specific and named too ugly to expose to users, and probably there's no need to do so.
+Vector3 Basis::rotref_posscale_decomposition(Basis &rotref) const {
+#ifdef MATH_CHECKS
+	ERR_FAIL_COND_V(determinant() == 0, Vector3());
+
+	Basis m = transposed() * (*this);
+	ERR_FAIL_COND_V(m.is_diagonal() == false, Vector3());
+#endif
+	Vector3 scale = get_scale();
+	Basis inv_scale = Basis().scaled(scale.inverse()); // this will also absorb the sign of scale
+	rotref = (*this) * inv_scale;
+
+#ifdef MATH_CHECKS
+	ERR_FAIL_COND_V(rotref.is_orthogonal() == false, Vector3());
+#endif
+	return scale.abs();
 }
 
 // Multiplies the matrix from left by the rotation matrix: M -> R.M
@@ -279,12 +330,30 @@ void Basis::rotate(const Vector3 &p_axis, real_t p_phi) {
 	*this = rotated(p_axis, p_phi);
 }
 
+void Basis::rotate_local(const Vector3 &p_axis, real_t p_phi) {
+	// performs a rotation in object-local coordinate system:
+	// M -> (M.R.Minv).M = M.R.
+	*this = rotated_local(p_axis, p_phi);
+}
+Basis Basis::rotated_local(const Vector3 &p_axis, real_t p_phi) const {
+
+	return (*this) * Basis(p_axis, p_phi);
+}
+
 Basis Basis::rotated(const Vector3 &p_euler) const {
 	return Basis(p_euler) * (*this);
 }
 
 void Basis::rotate(const Vector3 &p_euler) {
 	*this = rotated(p_euler);
+}
+
+Basis Basis::rotated(const Quat &p_quat) const {
+	return Basis(p_quat) * (*this);
+}
+
+void Basis::rotate(const Quat &p_quat) {
+	*this = rotated(p_quat);
 }
 
 // TODO: rename this to get_rotation_euler
@@ -316,29 +385,23 @@ void Basis::get_rotation_axis_angle(Vector3 &p_axis, real_t &p_angle) const {
 	m.get_axis_angle(p_axis, p_angle);
 }
 
-// Sets rotation while preserving scaling.
-// This requires some care when working with matrices with negative determinant,
-// since we're using a particular convention for "polar" decomposition in get_scale and get_rotation.
-// For details, see the explanation in get_scale.
-void Basis::set_rotation_euler(const Vector3 &p_euler) {
-	Vector3 s = get_scale();
-	Basis(); // reset to identity
-	scale(s);
-	rotate(p_euler);
+void Basis::get_rotation_axis_angle_local(Vector3 &p_axis, real_t &p_angle) const {
+	// Assumes that the matrix can be decomposed into a proper rotation and scaling matrix as M = R.S,
+	// and returns the Euler angles corresponding to the rotation part, complementing get_scale().
+	// See the comment in get_scale() for further information.
+	Basis m = transposed();
+	m.orthonormalize();
+	real_t det = m.determinant();
+	if (det < 0) {
+		// Ensure that the determinant is 1, such that result is a proper rotation matrix which can be represented by Euler angles.
+		m.scale(Vector3(-1, -1, -1));
+	}
+
+	m.get_axis_angle(p_axis, p_angle);
+	p_angle = -p_angle;
 }
 
-// Sets rotation while preserving scaling.
-// This requires some care when working with matrices with negative determinant,
-// since we're using a particular convention for "polar" decomposition in get_scale and get_rotation.
-// For details, see the explanation in get_scale.
-void Basis::set_rotation_axis_angle(const Vector3 &p_axis, real_t p_angle) {
-	Vector3 s = get_scale();
-	Basis(); // reset to identity
-	scale(s);
-	rotate(p_axis, p_angle);
-}
-
-// get_euler returns a vector containing the Euler angles in the format
+// get_euler_xyz returns a vector containing the Euler angles in the format
 // (a1,a2,a3), where a3 is the angle of the first rotation, and a1 is the last
 // (following the convention they are commonly defined in the literature).
 //
@@ -348,7 +411,7 @@ void Basis::set_rotation_axis_angle(const Vector3 &p_axis, real_t p_angle) {
 // And thus, assuming the matrix is a rotation matrix, this function returns
 // the angles in the decomposition R = X(a1).Y(a2).Z(a3) where Z(a) rotates
 // around the z-axis by a and so on.
-Vector3 Basis::get_euler() const {
+Vector3 Basis::get_euler_xyz() const {
 
 	// Euler angles in XYZ convention.
 	// See https://en.wikipedia.org/wiki/Euler_angles#Rotation_matrix
@@ -361,30 +424,38 @@ Vector3 Basis::get_euler() const {
 #ifdef MATH_CHECKS
 	ERR_FAIL_COND_V(is_rotation() == false, euler);
 #endif
-	euler.y = Math::asin(elements[0][2]);
-	if (euler.y < Math_PI * 0.5) {
-		if (euler.y > -Math_PI * 0.5) {
-			euler.x = Math::atan2(-elements[1][2], elements[2][2]);
-			euler.z = Math::atan2(-elements[0][1], elements[0][0]);
-
+	real_t sy = elements[0][2];
+	if (sy < 1.0) {
+		if (sy > -1.0) {
+			// is this a pure Y rotation?
+			if (elements[1][0] == 0.0 && elements[0][1] == 0.0 && elements[1][2] == 0 && elements[2][1] == 0 && elements[1][1] == 1) {
+				// return the simplest form (human friendlier in editor and scripts)
+				euler.x = 0;
+				euler.y = atan2(elements[0][2], elements[0][0]);
+				euler.z = 0;
+			} else {
+				euler.x = Math::atan2(-elements[1][2], elements[2][2]);
+				euler.y = Math::asin(sy);
+				euler.z = Math::atan2(-elements[0][1], elements[0][0]);
+			}
 		} else {
-			real_t r = Math::atan2(elements[1][0], elements[1][1]);
+			euler.x = -Math::atan2(elements[0][1], elements[1][1]);
+			euler.y = -Math_PI / 2.0;
 			euler.z = 0.0;
-			euler.x = euler.z - r;
 		}
 	} else {
-		real_t r = Math::atan2(elements[0][1], elements[1][1]);
-		euler.z = 0;
-		euler.x = r - euler.z;
+		euler.x = Math::atan2(elements[0][1], elements[1][1]);
+		euler.y = Math_PI / 2.0;
+		euler.z = 0.0;
 	}
-
 	return euler;
 }
 
-// set_euler expects a vector containing the Euler angles in the format
-// (c,b,a), where a is the angle of the first rotation, and c is the last.
+// set_euler_xyz expects a vector containing the Euler angles in the format
+// (ax,ay,az), where ax is the angle of rotation around x axis,
+// and similar for other axes.
 // The current implementation uses XYZ convention (Z is the first rotation).
-void Basis::set_euler(const Vector3 &p_euler) {
+void Basis::set_euler_xyz(const Vector3 &p_euler) {
 
 	real_t c, s;
 
@@ -402,6 +473,75 @@ void Basis::set_euler(const Vector3 &p_euler) {
 
 	//optimizer will optimize away all this anyway
 	*this = xmat * (ymat * zmat);
+}
+
+// get_euler_yxz returns a vector containing the Euler angles in the YXZ convention,
+// as in first-Z, then-X, last-Y. The angles for X, Y, and Z rotations are returned
+// as the x, y, and z components of a Vector3 respectively.
+Vector3 Basis::get_euler_yxz() const {
+
+	// Euler angles in YXZ convention.
+	// See https://en.wikipedia.org/wiki/Euler_angles#Rotation_matrix
+	//
+	// rot =  cy*cz+sy*sx*sz    cz*sy*sx-cy*sz        cx*sy
+	//        cx*sz             cx*cz                 -sx
+	//        cy*sx*sz-cz*sy    cy*cz*sx+sy*sz        cy*cx
+
+	Vector3 euler;
+#ifdef MATH_CHECKS
+	ERR_FAIL_COND_V(is_rotation() == false, euler);
+#endif
+	real_t m12 = elements[1][2];
+
+	if (m12 < 1) {
+		if (m12 > -1) {
+			// is this a pure X rotation?
+			if (elements[1][0] == 0 && elements[0][1] == 0 && elements[0][2] == 0 && elements[2][0] == 0 && elements[0][0] == 1) {
+				// return the simplest form (human friendlier in editor and scripts)
+				euler.x = atan2(-m12, elements[1][1]);
+				euler.y = 0;
+				euler.z = 0;
+			} else {
+				euler.x = asin(-m12);
+				euler.y = atan2(elements[0][2], elements[2][2]);
+				euler.z = atan2(elements[1][0], elements[1][1]);
+			}
+		} else { // m12 == -1
+			euler.x = Math_PI * 0.5;
+			euler.y = -atan2(-elements[0][1], elements[0][0]);
+			euler.z = 0;
+		}
+	} else { // m12 == 1
+		euler.x = -Math_PI * 0.5;
+		euler.y = -atan2(-elements[0][1], elements[0][0]);
+		euler.z = 0;
+	}
+
+	return euler;
+}
+
+// set_euler_yxz expects a vector containing the Euler angles in the format
+// (ax,ay,az), where ax is the angle of rotation around x axis,
+// and similar for other axes.
+// The current implementation uses YXZ convention (Z is the first rotation).
+void Basis::set_euler_yxz(const Vector3 &p_euler) {
+
+	real_t c, s;
+
+	c = Math::cos(p_euler.x);
+	s = Math::sin(p_euler.x);
+	Basis xmat(1.0, 0.0, 0.0, 0.0, c, -s, 0.0, s, c);
+
+	c = Math::cos(p_euler.y);
+	s = Math::sin(p_euler.y);
+	Basis ymat(c, 0.0, s, 0.0, 1.0, 0.0, -s, 0.0, c);
+
+	c = Math::cos(p_euler.z);
+	s = Math::sin(p_euler.z);
+	Basis zmat(c, -s, 0.0, s, c, 0.0, 0.0, 0.0, 1.0);
+
+	//optimizer will optimize away all this anyway
+	*this = ymat * xmat * zmat;
 }
 
 bool Basis::is_equal_approx(const Basis &a, const Basis &b) const {
@@ -450,10 +590,11 @@ Basis::operator String() const {
 	return mtx;
 }
 
-Basis::operator Quat() const {
-#ifdef MATH_CHECKS
-	ERR_FAIL_COND_V(is_rotation() == false, Quat());
-#endif
+Quat Basis::get_quat() const {
+	//commenting this check because precision issues cause it to fail when it shouldn't
+	//#ifdef MATH_CHECKS
+	//ERR_FAIL_COND_V(is_rotation() == false, Quat());
+	//#endif
 	real_t trace = elements[0][0] + elements[1][1] + elements[2][2];
 	real_t temp[4];
 
@@ -621,12 +762,7 @@ void Basis::get_axis_angle(Vector3 &r_axis, real_t &r_angle) const {
 	r_angle = angle;
 }
 
-Basis::Basis(const Vector3 &p_euler) {
-
-	set_euler(p_euler);
-}
-
-Basis::Basis(const Quat &p_quat) {
+void Basis::set_quat(const Quat &p_quat) {
 
 	real_t d = p_quat.length_squared();
 	real_t s = 2.0 / d;
@@ -662,6 +798,31 @@ void Basis::set_axis_angle(const Vector3 &p_axis, real_t p_phi) {
 	elements[2][2] = axis_sq.z + cosine * (1.0 - axis_sq.z);
 }
 
-Basis::Basis(const Vector3 &p_axis, real_t p_phi) {
-	set_axis_angle(p_axis, p_phi);
+void Basis::set_axis_angle_scale(const Vector3 &p_axis, real_t p_phi, const Vector3 &p_scale) {
+	set_diagonal(p_scale);
+	rotate(p_axis, p_phi);
+}
+
+void Basis::set_euler_scale(const Vector3 &p_euler, const Vector3 &p_scale) {
+	set_diagonal(p_scale);
+	rotate(p_euler);
+}
+
+void Basis::set_quat_scale(const Quat &p_quat, const Vector3 &p_scale) {
+	set_diagonal(p_scale);
+	rotate(p_quat);
+}
+
+void Basis::set_diagonal(const Vector3 p_diag) {
+	elements[0][0] = p_diag.x;
+	elements[0][1] = 0;
+	elements[0][2] = 0;
+
+	elements[1][0] = 0;
+	elements[1][1] = p_diag.y;
+	elements[1][2] = 0;
+
+	elements[2][0] = 0;
+	elements[2][1] = 0;
+	elements[2][2] = p_diag.z;
 }

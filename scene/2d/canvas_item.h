@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,12 +27,14 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef CANVAS_ITEM_H
 #define CANVAS_ITEM_H
 
 #include "scene/main/node.h"
-#include "scene/main/scene_main_loop.h"
+#include "scene/main/scene_tree.h"
 #include "scene/resources/material.h"
+#include "scene/resources/multimesh.h"
 #include "scene/resources/shader.h"
 #include "scene/resources/texture.h"
 
@@ -41,6 +43,96 @@ class Viewport;
 class Font;
 
 class StyleBox;
+
+class CanvasItemMaterial : public Material {
+
+	GDCLASS(CanvasItemMaterial, Material)
+
+public:
+	enum BlendMode {
+		BLEND_MODE_MIX,
+		BLEND_MODE_ADD,
+		BLEND_MODE_SUB,
+		BLEND_MODE_MUL,
+		BLEND_MODE_PREMULT_ALPHA
+	};
+
+	enum LightMode {
+		LIGHT_MODE_NORMAL,
+		LIGHT_MODE_UNSHADED,
+		LIGHT_MODE_LIGHT_ONLY
+	};
+
+private:
+	union MaterialKey {
+
+		struct {
+			uint32_t blend_mode : 4;
+			uint32_t light_mode : 4;
+			uint32_t invalid_key : 1;
+		};
+
+		uint32_t key;
+
+		bool operator<(const MaterialKey &p_key) const {
+			return key < p_key.key;
+		}
+	};
+
+	struct ShaderData {
+		RID shader;
+		int users;
+	};
+
+	static Map<MaterialKey, ShaderData> shader_map;
+
+	MaterialKey current_key;
+
+	_FORCE_INLINE_ MaterialKey _compute_key() const {
+
+		MaterialKey mk;
+		mk.key = 0;
+		mk.blend_mode = blend_mode;
+		mk.light_mode = light_mode;
+		return mk;
+	}
+
+	static Mutex *material_mutex;
+	static SelfList<CanvasItemMaterial>::List dirty_materials;
+	SelfList<CanvasItemMaterial> element;
+
+	void _update_shader();
+	_FORCE_INLINE_ void _queue_shader_change();
+	_FORCE_INLINE_ bool _is_shader_dirty() const;
+
+	BlendMode blend_mode;
+	LightMode light_mode;
+
+protected:
+	static void _bind_methods();
+	void _validate_property(PropertyInfo &property) const;
+
+public:
+	void set_blend_mode(BlendMode p_blend_mode);
+	BlendMode get_blend_mode() const;
+
+	void set_light_mode(LightMode p_light_mode);
+	LightMode get_light_mode() const;
+
+	static void init_shaders();
+	static void finish_shaders();
+	static void flush_changes();
+
+	RID get_shader_rid() const;
+
+	virtual Shader::Mode get_shader_mode() const;
+
+	CanvasItemMaterial();
+	virtual ~CanvasItemMaterial();
+};
+
+VARIANT_ENUM_CAST(CanvasItemMaterial::BlendMode)
+VARIANT_ENUM_CAST(CanvasItemMaterial::LightMode)
 
 class CanvasItem : public Node {
 
@@ -83,7 +175,7 @@ private:
 	bool notify_local_transform;
 	bool notify_transform;
 
-	Ref<ShaderMaterial> material;
+	Ref<Material> material;
 
 	mutable Transform2D global_transform;
 	mutable bool global_invalid;
@@ -128,11 +220,48 @@ public:
 
 	/* EDITOR */
 
-	virtual Variant edit_get_state() const;
-	virtual void edit_set_state(const Variant &p_state);
-	virtual void edit_set_rect(const Rect2 &p_edit_rect);
-	virtual void edit_rotate(float p_rot);
-	virtual Size2 edit_get_minimum_size() const;
+	// Save and restore a CanvasItem state
+	virtual void _edit_set_state(const Dictionary &p_state){};
+	virtual Dictionary _edit_get_state() const { return Dictionary(); };
+
+	// Used to move the node
+	virtual void _edit_set_position(const Point2 &p_position) = 0;
+	virtual Point2 _edit_get_position() const = 0;
+
+	// Used to scale the node
+	virtual void _edit_set_scale(const Size2 &p_scale) = 0;
+	virtual Size2 _edit_get_scale() const = 0;
+
+	// Used to resize/move the node
+	virtual void _edit_set_rect(const Rect2 &p_rect){};
+	virtual Rect2 _edit_get_rect() const { return Rect2(0, 0, 0, 0); };
+	virtual bool _edit_use_rect() const { return false; };
+
+	Rect2 _edit_get_item_and_children_rect() const;
+
+	// used to select the node
+	virtual bool _edit_is_selected_on_click(const Point2 &p_point, double p_tolerance) const;
+
+	// Used to rotate the node
+	virtual void
+	_edit_set_rotation(float p_rotation){};
+	virtual float _edit_get_rotation() const {
+		return 0.0;
+	};
+	virtual bool _edit_use_rotation() const {
+		return false;
+	};
+
+	// Used to set a pivot
+	virtual void _edit_set_pivot(const Point2 &p_pivot){};
+	virtual Point2 _edit_get_pivot() const {
+		return Point2();
+	};
+	virtual bool _edit_use_pivot() const {
+		return false;
+	};
+
+	virtual Size2 _edit_get_minimum_size() const;
 
 	/* VISIBILITY */
 
@@ -156,15 +285,22 @@ public:
 	/* DRAWING API */
 
 	void draw_line(const Point2 &p_from, const Point2 &p_to, const Color &p_color, float p_width = 1.0, bool p_antialiased = false);
-	void draw_rect(const Rect2 &p_rect, const Color &p_color);
+	void draw_polyline(const Vector<Point2> &p_points, const Color &p_color, float p_width = 1.0, bool p_antialiased = false);
+	void draw_polyline_colors(const Vector<Point2> &p_points, const Vector<Color> &p_colors, float p_width = 1.0, bool p_antialiased = false);
+	void draw_multiline(const Vector<Point2> &p_points, const Color &p_color, float p_width = 1.0, bool p_antialiased = false);
+	void draw_multiline_colors(const Vector<Point2> &p_points, const Vector<Color> &p_colors, float p_width = 1.0, bool p_antialiased = false);
+	void draw_rect(const Rect2 &p_rect, const Color &p_color, bool p_filled = true);
 	void draw_circle(const Point2 &p_pos, float p_radius, const Color &p_color);
-	void draw_texture(const Ref<Texture> &p_texture, const Point2 &p_pos, const Color &p_modulate = Color(1, 1, 1, 1));
-	void draw_texture_rect(const Ref<Texture> &p_texture, const Rect2 &p_rect, bool p_tile = false, const Color &p_modulate = Color(1, 1, 1), bool p_transpose = false);
-	void draw_texture_rect_region(const Ref<Texture> &p_texture, const Rect2 &p_rect, const Rect2 &p_src_rect, const Color &p_modulate = Color(1, 1, 1), bool p_transpose = false);
+	void draw_texture(const Ref<Texture> &p_texture, const Point2 &p_pos, const Color &p_modulate = Color(1, 1, 1, 1), const Ref<Texture> &p_normal_map = Ref<Texture>());
+	void draw_texture_rect(const Ref<Texture> &p_texture, const Rect2 &p_rect, bool p_tile = false, const Color &p_modulate = Color(1, 1, 1), bool p_transpose = false, const Ref<Texture> &p_normal_map = Ref<Texture>());
+	void draw_texture_rect_region(const Ref<Texture> &p_texture, const Rect2 &p_rect, const Rect2 &p_src_rect, const Color &p_modulate = Color(1, 1, 1), bool p_transpose = false, const Ref<Texture> &p_normal_map = Ref<Texture>(), bool p_clip_uv = false);
 	void draw_style_box(const Ref<StyleBox> &p_style_box, const Rect2 &p_rect);
-	void draw_primitive(const Vector<Point2> &p_points, const Vector<Color> &p_colors, const Vector<Point2> &p_uvs, Ref<Texture> p_texture = Ref<Texture>(), float p_width = 1);
-	void draw_polygon(const Vector<Point2> &p_points, const Vector<Color> &p_colors, const Vector<Point2> &p_uvs = Vector<Point2>(), Ref<Texture> p_texture = Ref<Texture>());
-	void draw_colored_polygon(const Vector<Point2> &p_points, const Color &p_color, const Vector<Point2> &p_uvs = Vector<Point2>(), Ref<Texture> p_texture = Ref<Texture>());
+	void draw_primitive(const Vector<Point2> &p_points, const Vector<Color> &p_colors, const Vector<Point2> &p_uvs, Ref<Texture> p_texture = Ref<Texture>(), float p_width = 1, const Ref<Texture> &p_normal_map = Ref<Texture>());
+	void draw_polygon(const Vector<Point2> &p_points, const Vector<Color> &p_colors, const Vector<Point2> &p_uvs = Vector<Point2>(), Ref<Texture> p_texture = Ref<Texture>(), const Ref<Texture> &p_normal_map = Ref<Texture>(), bool p_antialiased = false);
+	void draw_colored_polygon(const Vector<Point2> &p_points, const Color &p_color, const Vector<Point2> &p_uvs = Vector<Point2>(), Ref<Texture> p_texture = Ref<Texture>(), const Ref<Texture> &p_normal_map = Ref<Texture>(), bool p_antialiased = false);
+
+	void draw_mesh(const Ref<Mesh> &p_mesh, const Ref<Texture> &p_texture, const Ref<Texture> &p_normal_map);
+	void draw_multimesh(const Ref<MultiMesh> &p_multimesh, const Ref<Texture> &p_texture, const Ref<Texture> &p_normal_map);
 
 	void draw_string(const Ref<Font> &p_font, const Point2 &p_pos, const String &p_text, const Color &p_modulate = Color(1, 1, 1), int p_clip_w = -1);
 	float draw_char(const Ref<Font> &p_font, const Point2 &p_pos, const String &p_char, const String &p_next = "", const Color &p_modulate = Color(1, 1, 1));
@@ -182,16 +318,15 @@ public:
 
 	CanvasItem *get_parent_item() const;
 
-	virtual Rect2 get_item_rect() const = 0;
 	virtual Transform2D get_transform() const = 0;
 
 	virtual Transform2D get_global_transform() const;
 	virtual Transform2D get_global_transform_with_canvas() const;
 
-	Rect2 get_item_and_children_rect() const;
-
 	CanvasItem *get_toplevel() const;
-	_FORCE_INLINE_ RID get_canvas_item() const { return canvas_item; }
+	_FORCE_INLINE_ RID get_canvas_item() const {
+		return canvas_item;
+	}
 
 	void set_block_transform_notify(bool p_enable);
 	bool is_block_transform_notify_enabled() const;
@@ -203,17 +338,17 @@ public:
 	RID get_canvas() const;
 	Ref<World2D> get_world_2d() const;
 
-	void set_material(const Ref<ShaderMaterial> &p_material);
-	Ref<ShaderMaterial> get_material() const;
+	virtual void set_material(const Ref<Material> &p_material);
+	Ref<Material> get_material() const;
 
-	void set_use_parent_material(bool p_use_parent_material);
+	virtual void set_use_parent_material(bool p_use_parent_material);
 	bool get_use_parent_material() const;
 
-	Ref<InputEvent> make_input_local(const Ref<InputEvent> &pevent) const;
-	Vector2 make_canvas_pos_local(const Vector2 &screen_point) const;
+	Ref<InputEvent> make_input_local(const Ref<InputEvent> &p_event) const;
+	Vector2 make_canvas_position_local(const Vector2 &screen_point) const;
 
 	Vector2 get_global_mouse_position() const;
-	Vector2 get_local_mouse_pos() const;
+	Vector2 get_local_mouse_position() const;
 
 	void set_notify_local_transform(bool p_enable);
 	bool is_local_transform_notification_enabled() const;

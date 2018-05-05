@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "plane.h"
 
 #include "math_funcs.h"
@@ -103,7 +104,7 @@ bool Plane::intersect_3(const Plane &p_plane1, const Plane &p_plane2, Vector3 *r
 	return true;
 }
 
-bool Plane::intersects_ray(Vector3 p_from, Vector3 p_dir, Vector3 *p_intersection) const {
+bool Plane::intersects_ray(const Vector3 &p_from, const Vector3 &p_dir, Vector3 *p_intersection) const {
 
 	Vector3 segment = p_dir;
 	real_t den = normal.dot(segment);
@@ -128,7 +129,7 @@ bool Plane::intersects_ray(Vector3 p_from, Vector3 p_dir, Vector3 *p_intersectio
 	return true;
 }
 
-bool Plane::intersects_segment(Vector3 p_begin, Vector3 p_end, Vector3 *p_intersection) const {
+bool Plane::intersects_segment(const Vector3 &p_begin, const Vector3 &p_end, Vector3 *p_intersection) const {
 
 	Vector3 segment = p_begin - p_end;
 	real_t den = normal.dot(segment);

@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef IMAGE_H
 #define IMAGE_H
 
@@ -109,20 +110,26 @@ public:
 		/* INTERPOLATE GAUSS */
 	};
 
+	enum CompressSource {
+		COMPRESS_SOURCE_GENERIC,
+		COMPRESS_SOURCE_SRGB,
+		COMPRESS_SOURCE_NORMAL
+	};
+
 	//some functions provided by something else
 
 	static Ref<Image> (*_png_mem_loader_func)(const uint8_t *p_png, int p_size);
 	static Ref<Image> (*_jpg_mem_loader_func)(const uint8_t *p_png, int p_size);
 
-	static void (*_image_compress_bc_func)(Image *, bool p_srgb);
+	static void (*_image_compress_bc_func)(Image *, CompressSource p_source);
 	static void (*_image_compress_pvrtc2_func)(Image *);
 	static void (*_image_compress_pvrtc4_func)(Image *);
-	static void (*_image_compress_etc_func)(Image *);
-	static void (*_image_compress_etc2_func)(Image *);
+	static void (*_image_compress_etc1_func)(Image *, float);
+	static void (*_image_compress_etc2_func)(Image *, float, CompressSource p_source);
 
 	static void (*_image_decompress_pvrtc)(Image *);
 	static void (*_image_decompress_bc)(Image *);
-	static void (*_image_decompress_etc)(Image *);
+	static void (*_image_decompress_etc1)(Image *);
 	static void (*_image_decompress_etc2)(Image *);
 
 	static PoolVector<uint8_t> (*lossy_packer)(const Ref<Image> &p_image, float p_quality);
@@ -162,8 +169,8 @@ private:
 	static int _get_dst_image_size(int p_width, int p_height, Format p_format, int &r_mipmaps, int p_mipmaps = -1);
 	bool _can_modify(Format p_format) const;
 
-	_FORCE_INLINE_ void _put_pixelb(int p_x, int p_y, uint32_t p_pixelsize, uint8_t *p_dst, const uint8_t *p_src);
-	_FORCE_INLINE_ void _get_pixelb(int p_x, int p_y, uint32_t p_pixelsize, const uint8_t *p_src, uint8_t *p_dst);
+	_FORCE_INLINE_ void _put_pixelb(int p_x, int p_y, uint32_t p_pixelsize, uint8_t *p_data, const uint8_t *p_pixel);
+	_FORCE_INLINE_ void _get_pixelb(int p_x, int p_y, uint32_t p_pixelsize, const uint8_t *p_data, uint8_t *p_pixel);
 
 	void _set_data(const Dictionary &p_data);
 	Dictionary _get_data() const;
@@ -171,6 +178,7 @@ private:
 public:
 	int get_width() const; ///< Get image width
 	int get_height() const; ///< Get image height
+	Vector2 get_size() const;
 	bool has_mipmaps() const;
 	int get_mipmap_count() const;
 
@@ -200,6 +208,7 @@ public:
 	/**
 	 * Crop the image to a specific size, if larger, then the image is filled by black
 	 */
+	void crop_from_point(int p_x, int p_y, int p_width, int p_height);
 	void crop(int p_width, int p_height);
 
 	void flip_x();
@@ -208,7 +217,7 @@ public:
 	/**
 	 * Generate a mipmap to an image (creates an image 1/4 the size, with averaging of 4->1)
 	 */
-	Error generate_mipmaps();
+	Error generate_mipmaps(bool p_renormalize = false);
 
 	void clear_mipmaps();
 
@@ -267,7 +276,7 @@ public:
 		COMPRESS_ETC2,
 	};
 
-	Error compress(CompressMode p_mode = COMPRESS_S3TC, bool p_for_srgb = false);
+	Error compress(CompressMode p_mode = COMPRESS_S3TC, CompressSource p_source = COMPRESS_SOURCE_GENERIC, float p_lossy_quality = 0.7);
 	Error decompress();
 	bool is_compressed() const;
 
@@ -275,14 +284,22 @@ public:
 	void premultiply_alpha();
 	void srgb_to_linear();
 	void normalmap_to_xy();
+	void bumpmap_to_normalmap(float bump_scale = 1.0);
 
 	void blit_rect(const Ref<Image> &p_src, const Rect2 &p_src_rect, const Point2 &p_dest);
+	void blit_rect_mask(const Ref<Image> &p_src, const Ref<Image> &p_mask, const Rect2 &p_src_rect, const Point2 &p_dest);
+	void blend_rect(const Ref<Image> &p_src, const Rect2 &p_src_rect, const Point2 &p_dest);
+	void blend_rect_mask(const Ref<Image> &p_src, const Ref<Image> &p_mask, const Rect2 &p_src_rect, const Point2 &p_dest);
+	void fill(const Color &c);
 
 	Rect2 get_used_rect() const;
 	Ref<Image> get_rect(const Rect2 &p_area) const;
 
-	static void set_compress_bc_func(void (*p_compress_func)(Image *, bool));
+	static void set_compress_bc_func(void (*p_compress_func)(Image *, CompressSource));
 	static String get_format_name(Format p_format);
+
+	Error load_png_from_buffer(const PoolVector<uint8_t> &p_array);
+	Error load_jpg_from_buffer(const PoolVector<uint8_t> &p_array);
 
 	Image(const uint8_t *p_mem_png_jpg, int p_len = -1);
 	Image(const char **p_xpm);
@@ -304,8 +321,8 @@ public:
 
 	DetectChannels get_detected_channels();
 
-	Color get_pixel(int p_x, int p_y);
-	void put_pixel(int p_x, int p_y, const Color &p_color);
+	Color get_pixel(int p_x, int p_y) const;
+	void set_pixel(int p_x, int p_y, const Color &p_color);
 
 	void copy_internals_from(const Ref<Image> &p_image) {
 		ERR_FAIL_COND(p_image.is_null());
@@ -322,6 +339,7 @@ public:
 VARIANT_ENUM_CAST(Image::Format)
 VARIANT_ENUM_CAST(Image::Interpolation)
 VARIANT_ENUM_CAST(Image::CompressMode)
+VARIANT_ENUM_CAST(Image::CompressSource)
 VARIANT_ENUM_CAST(Image::AlphaMode)
 
 #endif

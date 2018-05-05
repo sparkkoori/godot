@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef MAIN_H
 #define MAIN_H
 
@@ -34,6 +35,7 @@
 	@author Juan Linietsky <reduzio@gmail.com>
 */
 
+#include "core/os/thread.h"
 #include "error_list.h"
 #include "typedefs.h"
 
@@ -49,11 +51,12 @@ class Main {
 
 public:
 	static Error setup(const char *execpath, int argc, char *argv[], bool p_second_phase = true);
-	static Error setup2();
+	static Error setup2(Thread::ID p_main_tid_override = 0);
 	static bool start();
 	static bool iteration();
 	static void cleanup();
 	static void force_redraw();
+	static bool is_project_manager();
 };
 
 #endif

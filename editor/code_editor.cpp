@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,9 +27,11 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "code_editor.h"
 
 #include "editor/editor_scale.h"
+#include "editor_node.h"
 #include "editor_settings.h"
 #include "os/keyboard.h"
 #include "scene/gui/margin_container.h"
@@ -55,6 +57,7 @@ void GotoLineDialog::ok_pressed() {
 
 	if (get_line() < 1 || get_line() > text_editor->get_line_count())
 		return;
+	text_editor->unfold_line(get_line() - 1);
 	text_editor->cursor_set_line(get_line() - 1);
 	hide();
 }
@@ -70,7 +73,7 @@ GotoLineDialog::GotoLineDialog() {
 	line = memnew(LineEdit);
 	line->set_anchor(MARGIN_RIGHT, ANCHOR_END);
 	line->set_begin(Point2(15, 22));
-	line->set_end(Point2(15, 35));
+	line->set_end(Point2(-15, 35));
 	add_child(line);
 	register_text_enter(line);
 	text_editor = NULL;
@@ -85,12 +88,23 @@ void FindReplaceBar::_notification(int p_what) {
 		find_prev->set_icon(get_icon("MoveUp", "EditorIcons"));
 		find_next->set_icon(get_icon("MoveDown", "EditorIcons"));
 		hide_button->set_normal_texture(get_icon("Close", "EditorIcons"));
-		hide_button->set_hover_texture(get_icon("CloseHover", "EditorIcons"));
+		hide_button->set_hover_texture(get_icon("Close", "EditorIcons"));
 		hide_button->set_pressed_texture(get_icon("Close", "EditorIcons"));
-
+		hide_button->set_custom_minimum_size(hide_button->get_normal_texture()->get_size());
 	} else if (p_what == NOTIFICATION_VISIBILITY_CHANGED) {
 
 		set_process_unhandled_input(is_visible_in_tree());
+		if (is_visible_in_tree()) {
+			call_deferred("_update_size");
+		}
+	} else if (p_what == EditorSettings::NOTIFICATION_EDITOR_SETTINGS_CHANGED) {
+
+		find_prev->set_icon(get_icon("MoveUp", "EditorIcons"));
+		find_next->set_icon(get_icon("MoveDown", "EditorIcons"));
+		hide_button->set_normal_texture(get_icon("Close", "EditorIcons"));
+		hide_button->set_hover_texture(get_icon("Close", "EditorIcons"));
+		hide_button->set_pressed_texture(get_icon("Close", "EditorIcons"));
+		hide_button->set_custom_minimum_size(hide_button->get_normal_texture()->get_size());
 	}
 }
 
@@ -99,7 +113,7 @@ void FindReplaceBar::_unhandled_input(const Ref<InputEvent> &p_event) {
 	Ref<InputEventKey> k = p_event;
 	if (k.is_valid()) {
 
-		if (k->is_pressed() && (text_edit->has_focus() || text_vbc->is_a_parent_of(get_focus_owner()))) {
+		if (k->is_pressed() && (text_edit->has_focus() || vbc_lineedit->is_a_parent_of(get_focus_owner()))) {
 
 			bool accepted = true;
 
@@ -131,6 +145,7 @@ bool FindReplaceBar::_search(uint32_t p_flags, int p_from_line, int p_from_col) 
 
 	if (found) {
 		if (!preserve_cursor) {
+			text_edit->unfold_line(line);
 			text_edit->cursor_set_line(line, false);
 			text_edit->cursor_set_column(col + text.length(), false);
 			text_edit->center_viewport_to_cursor();
@@ -159,6 +174,7 @@ void FindReplaceBar::_replace() {
 	if (result_line != -1 && result_col != -1) {
 		text_edit->begin_complex_operation();
 
+		text_edit->unfold_line(result_line);
 		text_edit->select(result_line, result_col, result_line, result_col + get_search_text().length());
 		text_edit->insert_text_at_cursor(get_replace_text());
 
@@ -170,6 +186,7 @@ void FindReplaceBar::_replace() {
 
 void FindReplaceBar::_replace_all() {
 
+	text_edit->disconnect("text_changed", this, "_editor_text_changed");
 	// line as x so it gets priority in comparison, column as y
 	Point2i orig_cursor(text_edit->cursor_get_line(), text_edit->cursor_get_column());
 	Point2i prev_match = Point2(-1, -1);
@@ -195,34 +212,39 @@ void FindReplaceBar::_replace_all() {
 
 	text_edit->begin_complex_operation();
 
-	while (search_next()) {
+	if (search_current()) {
+		do {
+			// replace area
+			Point2i match_from(result_line, result_col);
+			Point2i match_to(result_line, result_col + search_text_len);
 
-		// replace area
-		Point2i match_from(result_line, result_col);
-		Point2i match_to(result_line, result_col + search_text_len);
+			if (match_from < prev_match) {
+				break; // done
+			}
 
-		if (match_from < prev_match)
-			break; // done
+			prev_match = Point2i(result_line, result_col + replace_text.length());
 
-		prev_match = Point2i(result_line, result_col + replace_text.length());
+			text_edit->unfold_line(result_line);
+			text_edit->select(result_line, result_col, result_line, match_to.y);
 
-		text_edit->select(result_line, result_col, result_line, match_to.y);
+			if (selection_enabled && is_selection_only()) {
+				if (match_from < selection_begin || match_to > selection_end) {
+					continue;
+				}
 
-		if (selection_enabled && is_selection_only()) {
+				// replace but adjust selection bounds
+				text_edit->insert_text_at_cursor(replace_text);
+				if (match_to.x == selection_end.x) {
+					selection_end.y += replace_text.length() - search_text_len;
+				}
 
-			if (match_from < selection_begin || match_to > selection_end)
-				continue;
+			} else {
+				// just replace
+				text_edit->insert_text_at_cursor(replace_text);
+			}
 
-			// replace but adjust selection bounds
-			text_edit->insert_text_at_cursor(replace_text);
-			if (match_to.x == selection_end.x)
-				selection_end.y += replace_text.length() - search_text_len;
-		} else {
-			// just replace
-			text_edit->insert_text_at_cursor(replace_text);
-		}
-
-		rc++;
+			rc++;
+		} while (search_next());
 	}
 
 	text_edit->end_complex_operation();
@@ -242,6 +264,8 @@ void FindReplaceBar::_replace_all() {
 
 	text_edit->set_v_scroll(vsval);
 	set_error(vformat(TTR("Replaced %d occurrence(s)."), rc));
+
+	text_edit->call_deferred("connect", "text_changed", this, "_editor_text_changed");
 }
 
 void FindReplaceBar::_get_search_from(int &r_line, int &r_col) {
@@ -258,7 +282,6 @@ void FindReplaceBar::_get_search_from(int &r_line, int &r_col) {
 			int selection_from_col = text_edit->get_selection_from_column();
 
 			if (r_col >= selection_from_col && r_col <= text_edit->get_selection_to_column()) {
-				r_col = selection_line;
 				r_col = selection_from_col;
 			}
 		}
@@ -344,13 +367,13 @@ void FindReplaceBar::_hide_bar() {
 	text_edit->set_search_text("");
 	result_line = -1;
 	result_col = -1;
-	replace_hbc->hide();
-	replace_options_hbc->hide();
+	set_error("");
 	hide();
 }
 
 void FindReplaceBar::_show_search() {
 
+	hide(); // to update size correctly
 	show();
 	search_text->grab_focus();
 
@@ -360,24 +383,27 @@ void FindReplaceBar::_show_search() {
 
 	if (!get_search_text().empty()) {
 		search_text->select_all();
-		search_text->set_cursor_pos(search_text->get_text().length());
+		search_text->set_cursor_position(search_text->get_text().length());
 		search_current();
 	}
+	call_deferred("_update_size");
 }
 
 void FindReplaceBar::popup_search() {
 
-	replace_hbc->hide();
-	replace_options_hbc->hide();
+	replace_text->hide();
+	hbc_button_replace->hide();
+	hbc_option_replace->hide();
 	_show_search();
 }
 
 void FindReplaceBar::popup_replace() {
 
-	if (!replace_hbc->is_visible_in_tree() || !replace_options_hbc->is_visible_in_tree()) {
+	if (!replace_text->is_visible_in_tree()) {
 		replace_text->clear();
-		replace_hbc->show();
-		replace_options_hbc->show();
+		replace_text->show();
+		hbc_button_replace->show();
+		hbc_option_replace->show();
 	}
 
 	selection_only->set_pressed((text_edit->is_selection_active() && text_edit->get_selection_from_line() < text_edit->get_selection_to_line()));
@@ -444,13 +470,18 @@ bool FindReplaceBar::is_selection_only() const {
 
 void FindReplaceBar::set_error(const String &p_label) {
 
-	error_label->set_text(p_label);
+	emit_signal("error", p_label);
 }
 
 void FindReplaceBar::set_text_edit(TextEdit *p_text_edit) {
 
 	text_edit = p_text_edit;
 	text_edit->connect("text_changed", this, "_editor_text_changed");
+}
+
+void FindReplaceBar::_update_size() {
+
+	container->set_custom_minimum_size(Size2(0, hbc->get_size().height));
 }
 
 void FindReplaceBar::_bind_methods() {
@@ -468,490 +499,101 @@ void FindReplaceBar::_bind_methods() {
 	ClassDB::bind_method("_replace_all_pressed", &FindReplaceBar::_replace_all);
 	ClassDB::bind_method("_search_options_changed", &FindReplaceBar::_search_options_changed);
 	ClassDB::bind_method("_hide_pressed", &FindReplaceBar::_hide_bar);
+	ClassDB::bind_method("_update_size", &FindReplaceBar::_update_size);
 
 	ADD_SIGNAL(MethodInfo("search"));
+	ADD_SIGNAL(MethodInfo("error"));
 }
 
 FindReplaceBar::FindReplaceBar() {
 
+	container = memnew(Control);
+	add_child(container);
+	container->set_clip_contents(true);
+	container->set_h_size_flags(SIZE_EXPAND_FILL);
+
 	replace_all_mode = false;
 	preserve_cursor = false;
 
-	text_vbc = memnew(VBoxContainer);
-	add_child(text_vbc);
+	hbc = memnew(HBoxContainer);
+	container->add_child(hbc);
+	hbc->set_anchor_and_margin(MARGIN_RIGHT, 1, 0);
 
-	HBoxContainer *search_hbc = memnew(HBoxContainer);
-	text_vbc->add_child(search_hbc);
+	vbc_lineedit = memnew(VBoxContainer);
+	hbc->add_child(vbc_lineedit);
+	vbc_lineedit->set_h_size_flags(SIZE_EXPAND_FILL);
+	VBoxContainer *vbc_button = memnew(VBoxContainer);
+	hbc->add_child(vbc_button);
+	VBoxContainer *vbc_option = memnew(VBoxContainer);
+	hbc->add_child(vbc_option);
 
+	HBoxContainer *hbc_button_search = memnew(HBoxContainer);
+	vbc_button->add_child(hbc_button_search);
+	hbc_button_replace = memnew(HBoxContainer);
+	vbc_button->add_child(hbc_button_replace);
+
+	HBoxContainer *hbc_option_search = memnew(HBoxContainer);
+	vbc_option->add_child(hbc_option_search);
+	hbc_option_replace = memnew(HBoxContainer);
+	vbc_option->add_child(hbc_option_replace);
+
+	// search toolbar
 	search_text = memnew(LineEdit);
-	search_hbc->add_child(search_text);
-	search_text->set_custom_minimum_size(Size2(200, 0));
+	vbc_lineedit->add_child(search_text);
+	search_text->set_custom_minimum_size(Size2(100 * EDSCALE, 0));
 	search_text->connect("text_changed", this, "_search_text_changed");
 	search_text->connect("text_entered", this, "_search_text_entered");
 
 	find_prev = memnew(ToolButton);
-	search_hbc->add_child(find_prev);
+	hbc_button_search->add_child(find_prev);
 	find_prev->set_focus_mode(FOCUS_NONE);
 	find_prev->connect("pressed", this, "_search_prev");
 
 	find_next = memnew(ToolButton);
-	search_hbc->add_child(find_next);
+	hbc_button_search->add_child(find_next);
 	find_next->set_focus_mode(FOCUS_NONE);
 	find_next->connect("pressed", this, "_search_next");
 
-	replace_hbc = memnew(HBoxContainer);
-	text_vbc->add_child(replace_hbc);
-	replace_hbc->hide();
-
-	replace_text = memnew(LineEdit);
-	replace_hbc->add_child(replace_text);
-	replace_text->set_custom_minimum_size(Size2(200, 0));
-	replace_text->connect("text_entered", this, "_replace_text_entered");
-
-	replace = memnew(Button);
-	replace_hbc->add_child(replace);
-	replace->set_text(TTR("Replace"));
-	//replace->set_focus_mode(FOCUS_NONE);
-	replace->connect("pressed", this, "_replace_pressed");
-
-	replace_all = memnew(Button);
-	replace_hbc->add_child(replace_all);
-	replace_all->set_text(TTR("Replace All"));
-	//replace_all->set_focus_mode(FOCUS_NONE);
-	replace_all->connect("pressed", this, "_replace_all_pressed");
-
-	Control *spacer_split = memnew(Control);
-	spacer_split->set_custom_minimum_size(Size2(0, 1));
-	text_vbc->add_child(spacer_split);
-
-	VBoxContainer *options_vbc = memnew(VBoxContainer);
-	add_child(options_vbc);
-	options_vbc->set_h_size_flags(SIZE_EXPAND_FILL);
-
-	HBoxContainer *search_options = memnew(HBoxContainer);
-	options_vbc->add_child(search_options);
-
 	case_sensitive = memnew(CheckBox);
-	search_options->add_child(case_sensitive);
+	hbc_option_search->add_child(case_sensitive);
 	case_sensitive->set_text(TTR("Match Case"));
 	case_sensitive->set_focus_mode(FOCUS_NONE);
 	case_sensitive->connect("toggled", this, "_search_options_changed");
 
 	whole_words = memnew(CheckBox);
-	search_options->add_child(whole_words);
+	hbc_option_search->add_child(whole_words);
 	whole_words->set_text(TTR("Whole Words"));
 	whole_words->set_focus_mode(FOCUS_NONE);
 	whole_words->connect("toggled", this, "_search_options_changed");
 
-	error_label = memnew(Label);
-	search_options->add_child(error_label);
-	error_label->add_color_override("font_color", Color(1, 1, 0, 1));
-	error_label->add_color_override("font_color_shadow", Color(0, 0, 0, 1));
-	error_label->add_constant_override("shadow_as_outline", 1);
+	// replace toolbar
+	replace_text = memnew(LineEdit);
+	vbc_lineedit->add_child(replace_text);
+	replace_text->set_custom_minimum_size(Size2(100 * EDSCALE, 0));
+	replace_text->connect("text_entered", this, "_replace_text_entered");
 
-	search_options->add_spacer();
+	replace = memnew(Button);
+	hbc_button_replace->add_child(replace);
+	replace->set_text(TTR("Replace"));
+	replace->connect("pressed", this, "_replace_pressed");
 
-	hide_button = memnew(TextureButton);
-	search_options->add_child(hide_button);
-	hide_button->set_focus_mode(FOCUS_NONE);
-	hide_button->connect("pressed", this, "_hide_pressed");
-
-	replace_options_hbc = memnew(HBoxContainer);
-	options_vbc->add_child(replace_options_hbc);
-	replace_options_hbc->hide();
+	replace_all = memnew(Button);
+	hbc_button_replace->add_child(replace_all);
+	replace_all->set_text(TTR("Replace All"));
+	replace_all->connect("pressed", this, "_replace_all_pressed");
 
 	selection_only = memnew(CheckBox);
-	replace_options_hbc->add_child(selection_only);
+	hbc_option_replace->add_child(selection_only);
 	selection_only->set_text(TTR("Selection Only"));
 	selection_only->set_focus_mode(FOCUS_NONE);
 	selection_only->connect("toggled", this, "_search_options_changed");
-}
 
-void FindReplaceDialog::popup_search() {
-
-	set_title(TTR("Search"));
-	replace_mc->hide();
-	replace_label->hide();
-	replace_vb->hide();
-	skip->hide();
-	popup_centered(Point2(300, 190));
-	get_ok()->set_text(TTR("Find"));
-	search_text->grab_focus();
-	if (text_edit->is_selection_active() && (text_edit->get_selection_from_line() == text_edit->get_selection_to_line())) {
-
-		search_text->set_text(text_edit->get_selection_text());
-	}
-	search_text->select_all();
-
-	error_label->set_text("");
-}
-
-void FindReplaceDialog::popup_replace() {
-
-	set_title(TTR("Replace"));
-	bool do_selection = (text_edit->is_selection_active() && text_edit->get_selection_from_line() < text_edit->get_selection_to_line());
-
-	set_replace_selection_only(do_selection);
-
-	if (!do_selection && text_edit->is_selection_active()) {
-		search_text->set_text(text_edit->get_selection_text());
-	}
-
-	replace_mc->show();
-	replace_label->show();
-	replace_vb->show();
-	popup_centered(Point2(300, 300));
-	if (search_text->get_text() != "" && replace_text->get_text() == "") {
-		search_text->select(0, 0);
-		replace_text->grab_focus();
-	} else {
-		search_text->grab_focus();
-		search_text->select_all();
-	}
-	error_label->set_text("");
-
-	if (prompt->is_pressed()) {
-		skip->show();
-		get_ok()->set_text(TTR("Next"));
-		selection_only->set_disabled(true);
-
-	} else {
-		skip->hide();
-		get_ok()->set_text(TTR("Replace"));
-		selection_only->set_disabled(false);
-	}
-}
-
-void FindReplaceDialog::_search_callback() {
-
-	if (is_replace_mode())
-		_replace();
-	else
-		_search();
-}
-
-void FindReplaceDialog::_replace_skip_callback() {
-
-	_search();
-}
-
-void FindReplaceDialog::_replace() {
-
-	text_edit->begin_complex_operation();
-	if (is_replace_all_mode()) {
-
-		//line as x so it gets priority in comparison, column as y
-		Point2i orig_cursor(text_edit->cursor_get_line(), text_edit->cursor_get_column());
-		Point2i prev_match = Point2(-1, -1);
-
-		bool selection_enabled = text_edit->is_selection_active();
-		Point2i selection_begin, selection_end;
-		if (selection_enabled) {
-			selection_begin = Point2i(text_edit->get_selection_from_line(), text_edit->get_selection_from_column());
-			selection_end = Point2i(text_edit->get_selection_to_line(), text_edit->get_selection_to_column());
-		}
-		int vsval = text_edit->get_v_scroll();
-		//int hsval = text_edit->get_h_scroll();
-
-		text_edit->cursor_set_line(0);
-		text_edit->cursor_set_column(0);
-
-		int rc = 0;
-
-		while (_search()) {
-
-			if (!text_edit->is_selection_active()) {
-				//search selects
-				break;
-			}
-
-			//replace area
-			Point2i match_from(text_edit->get_selection_from_line(), text_edit->get_selection_from_column());
-			Point2i match_to(text_edit->get_selection_to_line(), text_edit->get_selection_to_column());
-
-			if (match_from < prev_match)
-				break; //done
-
-			prev_match = match_to;
-
-			if (selection_enabled && is_replace_selection_only()) {
-
-				if (match_from < selection_begin || match_to > selection_end)
-					continue;
-
-				//replace but adjust selection bounds
-
-				text_edit->insert_text_at_cursor(get_replace_text());
-				if (match_to.x == selection_end.x)
-					selection_end.y += get_replace_text().length() - get_search_text().length();
-			} else {
-				//just replace
-				text_edit->insert_text_at_cursor(get_replace_text());
-			}
-			rc++;
-		}
-		//restore editor state (selection, cursor, scroll)
-		text_edit->cursor_set_line(orig_cursor.x);
-		text_edit->cursor_set_column(orig_cursor.y);
-
-		if (selection_enabled && is_replace_selection_only()) {
-			//reselect
-			text_edit->select(selection_begin.x, selection_begin.y, selection_end.x, selection_end.y);
-		} else {
-			text_edit->deselect();
-		}
-
-		text_edit->set_v_scroll(vsval);
-		//text_edit->set_h_scroll(hsval);
-		error_label->set_text(vformat(TTR("Replaced %d occurrence(s)."), rc));
-
-		//hide();
-	} else {
-
-		if (text_edit->get_selection_text() == get_search_text()) {
-
-			text_edit->insert_text_at_cursor(get_replace_text());
-		}
-
-		_search();
-	}
-	text_edit->end_complex_operation();
-}
-
-bool FindReplaceDialog::_search() {
-
-	String text = get_search_text();
-	uint32_t flags = 0;
-
-	if (is_whole_words())
-		flags |= TextEdit::SEARCH_WHOLE_WORDS;
-	if (is_case_sensitive())
-		flags |= TextEdit::SEARCH_MATCH_CASE;
-	if (is_backwards())
-		flags |= TextEdit::SEARCH_BACKWARDS;
-
-	int line = text_edit->cursor_get_line(), col = text_edit->cursor_get_column();
-
-	if (is_backwards()) {
-		col -= 1;
-		if (col < 0) {
-			line -= 1;
-			if (line < 0) {
-				line = text_edit->get_line_count() - 1;
-			}
-			col = text_edit->get_line(line).length();
-		}
-	}
-	bool found = text_edit->search(text, flags, line, col, line, col);
-
-	if (found) {
-		// print_line("found");
-		text_edit->cursor_set_line(line);
-		if (is_backwards())
-			text_edit->cursor_set_column(col);
-		else
-			text_edit->cursor_set_column(col + text.length());
-		text_edit->select(line, col, line, col + text.length());
-		set_error("");
-		return true;
-	} else {
-
-		set_error(TTR("Not found!"));
-		return false;
-	}
-}
-
-void FindReplaceDialog::_prompt_changed() {
-
-	if (prompt->is_pressed()) {
-		skip->show();
-		get_ok()->set_text(TTR("Next"));
-		selection_only->set_disabled(true);
-
-	} else {
-		skip->hide();
-		get_ok()->set_text(TTR("Replace"));
-		selection_only->set_disabled(false);
-	}
-}
-
-void FindReplaceDialog::_skip_pressed() {
-
-	_replace_skip_callback();
-}
-
-bool FindReplaceDialog::is_replace_mode() const {
-
-	return replace_text->is_visible_in_tree();
-}
-
-bool FindReplaceDialog::is_replace_all_mode() const {
-
-	return !prompt->is_pressed();
-}
-
-bool FindReplaceDialog::is_replace_selection_only() const {
-
-	return selection_only->is_pressed();
-}
-void FindReplaceDialog::set_replace_selection_only(bool p_enable) {
-
-	selection_only->set_pressed(p_enable);
-}
-
-void FindReplaceDialog::ok_pressed() {
-
-	_search_callback();
-}
-
-void FindReplaceDialog::_search_text_entered(const String &p_text) {
-
-	if (replace_text->is_visible_in_tree())
-		return;
-	emit_signal("search");
-	_search();
-}
-
-void FindReplaceDialog::_replace_text_entered(const String &p_text) {
-
-	if (!replace_text->is_visible_in_tree())
-		return;
-
-	emit_signal("search");
-	_replace();
-}
-
-String FindReplaceDialog::get_search_text() const {
-
-	return search_text->get_text();
-}
-String FindReplaceDialog::get_replace_text() const {
-
-	return replace_text->get_text();
-}
-bool FindReplaceDialog::is_whole_words() const {
-
-	return whole_words->is_pressed();
-}
-bool FindReplaceDialog::is_case_sensitive() const {
-
-	return case_sensitive->is_pressed();
-}
-bool FindReplaceDialog::is_backwards() const {
-
-	return backwards->is_pressed();
-}
-
-void FindReplaceDialog::set_error(const String &p_error) {
-
-	error_label->set_text(p_error);
-}
-
-void FindReplaceDialog::set_text_edit(TextEdit *p_text_edit) {
-
-	text_edit = p_text_edit;
-}
-
-void FindReplaceDialog::search_next() {
-	_search();
-}
-
-void FindReplaceDialog::_bind_methods() {
-
-	ClassDB::bind_method("_search_text_entered", &FindReplaceDialog::_search_text_entered);
-	ClassDB::bind_method("_replace_text_entered", &FindReplaceDialog::_replace_text_entered);
-	ClassDB::bind_method("_prompt_changed", &FindReplaceDialog::_prompt_changed);
-	ClassDB::bind_method("_skip_pressed", &FindReplaceDialog::_skip_pressed);
-	ADD_SIGNAL(MethodInfo("search"));
-	ADD_SIGNAL(MethodInfo("skip"));
-}
-
-FindReplaceDialog::FindReplaceDialog() {
-
-	set_self_modulate(Color(1, 1, 1, 0.8));
-
-	VBoxContainer *vb = memnew(VBoxContainer);
-	add_child(vb);
-
-	search_text = memnew(LineEdit);
-	vb->add_margin_child(TTR("Search"), search_text);
-	search_text->connect("text_entered", this, "_search_text_entered");
-	//search_text->set_self_opacity(0.7);
-
-	replace_label = memnew(Label);
-	replace_label->set_text(TTR("Replace By"));
-	vb->add_child(replace_label);
-	replace_mc = memnew(MarginContainer);
-	vb->add_child(replace_mc);
-
-	replace_text = memnew(LineEdit);
-	replace_text->set_anchor(MARGIN_RIGHT, ANCHOR_END);
-	replace_text->set_begin(Point2(15, 132));
-	replace_text->set_end(Point2(15, 135));
-	//replace_text->set_self_opacity(0.7);
-	replace_mc->add_child(replace_text);
-
-	replace_text->connect("text_entered", this, "_replace_text_entered");
-
-	MarginContainer *opt_mg = memnew(MarginContainer);
-	vb->add_child(opt_mg);
-	VBoxContainer *svb = memnew(VBoxContainer);
-	opt_mg->add_child(svb);
-
-	svb->add_child(memnew(Label));
-
-	whole_words = memnew(CheckButton);
-	whole_words->set_text(TTR("Whole Words"));
-	svb->add_child(whole_words);
-
-	case_sensitive = memnew(CheckButton);
-	case_sensitive->set_text(TTR("Case Sensitive"));
-	svb->add_child(case_sensitive);
-
-	backwards = memnew(CheckButton);
-	backwards->set_text(TTR("Backwards"));
-	svb->add_child(backwards);
-
-	opt_mg = memnew(MarginContainer);
-	vb->add_child(opt_mg);
-	VBoxContainer *rvb = memnew(VBoxContainer);
-	opt_mg->add_child(rvb);
-	replace_vb = rvb;
-	//rvb ->add_child(memnew(HSeparator));
-	rvb->add_child(memnew(Label));
-
-	prompt = memnew(CheckButton);
-	prompt->set_text(TTR("Prompt On Replace"));
-	rvb->add_child(prompt);
-	prompt->connect("pressed", this, "_prompt_changed");
-
-	selection_only = memnew(CheckButton);
-	selection_only->set_text(TTR("Selection Only"));
-	rvb->add_child(selection_only);
-
-	int margin = get_constant("margin", "Dialogs");
-	int button_margin = get_constant("button_margin", "Dialogs");
-
-	skip = memnew(Button);
-	skip->set_anchor(MARGIN_LEFT, ANCHOR_END);
-	skip->set_anchor(MARGIN_TOP, ANCHOR_END);
-	skip->set_anchor(MARGIN_RIGHT, ANCHOR_END);
-	skip->set_anchor(MARGIN_BOTTOM, ANCHOR_END);
-	skip->set_begin(Point2(70, button_margin));
-	skip->set_end(Point2(10, margin));
-	skip->set_text(TTR("Skip"));
-	add_child(skip);
-	skip->connect("pressed", this, "_skip_pressed");
-
-	error_label = memnew(Label);
-	error_label->set_align(Label::ALIGN_CENTER);
-	error_label->add_color_override("font_color", Color(1, 0.4, 0.3));
-	error_label->add_color_override("font_color_shadow", Color(0, 0, 0, 0.2));
-	error_label->add_constant_override("shadow_as_outline", 1);
-
-	vb->add_child(error_label);
-
-	set_hide_on_ok(false);
+	hide_button = memnew(TextureButton);
+	add_child(hide_button);
+	hide_button->set_focus_mode(FOCUS_NONE);
+	hide_button->connect("pressed", this, "_hide_pressed");
+	hide_button->set_expand(true);
+	hide_button->set_stretch_mode(TextureButton::STRETCH_KEEP_CENTERED);
 }
 
 /*** CODE EDITOR ****/
@@ -970,6 +612,23 @@ void CodeTextEditor::_text_editor_gui_input(const Ref<InputEvent> &p_event) {
 				_zoom_out();
 			}
 		}
+	}
+
+	Ref<InputEventMagnifyGesture> magnify_gesture = p_event;
+	if (magnify_gesture.is_valid()) {
+
+		Ref<DynamicFont> font = text_editor->get_font("font");
+
+		if (font.is_valid()) {
+			if (font->get_size() != (int)font_size) {
+				font_size = font->get_size();
+			}
+
+			font_size *= powf(magnify_gesture->get_factor(), 0.25);
+
+			_add_font_size((int)font_size - font->get_size());
+		}
+		return;
 	}
 
 	Ref<InputEventKey> k = p_event;
@@ -991,15 +650,16 @@ void CodeTextEditor::_text_editor_gui_input(const Ref<InputEvent> &p_event) {
 }
 
 void CodeTextEditor::_zoom_in() {
-	font_resize_val += 1;
-
-	if (font_resize_timer->get_time_left() == 0)
-		font_resize_timer->start();
+	font_resize_val += EDSCALE;
+	_zoom_changed();
 }
 
 void CodeTextEditor::_zoom_out() {
-	font_resize_val -= 1;
+	font_resize_val -= EDSCALE;
+	_zoom_changed();
+}
 
+void CodeTextEditor::_zoom_changed() {
 	if (font_resize_timer->get_time_left() == 0)
 		font_resize_timer->start();
 }
@@ -1008,20 +668,37 @@ void CodeTextEditor::_reset_zoom() {
 	Ref<DynamicFont> font = text_editor->get_font("font"); // reset source font size to default
 
 	if (font.is_valid()) {
-		EditorSettings::get_singleton()->set("interface/source_font_size", 14);
+		EditorSettings::get_singleton()->set("interface/editor/code_font_size", 14);
 		font->set_size(14);
+		zoom_nb->set_text("100%");
 	}
 }
 
 void CodeTextEditor::_line_col_changed() {
 
 	line_nb->set_text(itos(text_editor->cursor_get_line() + 1));
-	col_nb->set_text(itos(text_editor->cursor_get_column() + 1));
+
+	String line = text_editor->get_line(text_editor->cursor_get_line());
+
+	int positional_column = 0;
+
+	for (int i = 0; i < text_editor->cursor_get_column(); i++) {
+		if (line[i] == '\t') {
+			positional_column += text_editor->get_indent_size(); //tab size
+		} else {
+			positional_column += 1;
+		}
+	}
+
+	col_nb->set_text(itos(positional_column + 1));
 }
 
 void CodeTextEditor::_text_changed() {
 
-	code_complete_timer->start();
+	if (text_editor->is_insert_text_operation()) {
+		code_complete_timer->start();
+	}
+
 	idle->start();
 }
 
@@ -1037,8 +714,9 @@ void CodeTextEditor::_complete_request() {
 	List<String> entries;
 	String ctext = text_editor->get_text_for_completion();
 	_code_complete_script(ctext, &entries);
+	bool forced = false;
 	if (code_complete_func) {
-		code_complete_func(code_complete_ud, ctext, &entries);
+		code_complete_func(code_complete_ud, ctext, &entries, forced);
 	}
 	// print_line("COMPLETE: "+p_request);
 	if (entries.size() == 0)
@@ -1051,22 +729,33 @@ void CodeTextEditor::_complete_request() {
 		strs[i++] = E->get();
 	}
 
-	text_editor->code_complete(strs);
+	text_editor->code_complete(strs, forced);
 }
 
 void CodeTextEditor::_font_resize_timeout() {
 
+	if (_add_font_size(font_resize_val)) {
+		font_resize_val = 0;
+	}
+}
+
+bool CodeTextEditor::_add_font_size(int p_delta) {
+
 	Ref<DynamicFont> font = text_editor->get_font("font");
 
 	if (font.is_valid()) {
-		int size = font->get_size() + font_resize_val;
+		int new_size = CLAMP(font->get_size() + p_delta, 8 * EDSCALE, 96 * EDSCALE);
 
-		if (size >= 8 && size <= 96) {
-			EditorSettings::get_singleton()->set("interface/source_font_size", size);
-			font->set_size(size);
+		zoom_nb->set_text(itos(100 * new_size / 14) + "%");
+
+		if (new_size != font->get_size()) {
+			EditorSettings::get_singleton()->set("interface/editor/code_font_size", new_size / EDSCALE);
+			font->set_size(new_size);
 		}
 
-		font_resize_val = 0;
+		return true;
+	} else {
+		return false;
 	}
 }
 
@@ -1076,6 +765,7 @@ void CodeTextEditor::update_editor_settings() {
 	text_editor->set_scroll_pass_end_of_file(EditorSettings::get_singleton()->get("text_editor/cursor/scroll_past_end_of_file"));
 	text_editor->set_indent_using_spaces(EditorSettings::get_singleton()->get("text_editor/indent/type"));
 	text_editor->set_indent_size(EditorSettings::get_singleton()->get("text_editor/indent/size"));
+	text_editor->set_auto_indent(EditorSettings::get_singleton()->get("text_editor/indent/auto_indent"));
 	text_editor->set_draw_tabs(EditorSettings::get_singleton()->get("text_editor/indent/draw_tabs"));
 	text_editor->set_show_line_numbers(EditorSettings::get_singleton()->get("text_editor/line_numbers/show_line_numbers"));
 	text_editor->set_line_numbers_zero_padded(EditorSettings::get_singleton()->get("text_editor/line_numbers/line_numbers_zero_padded"));
@@ -1083,37 +773,32 @@ void CodeTextEditor::update_editor_settings() {
 	text_editor->set_line_length_guideline_column(EditorSettings::get_singleton()->get("text_editor/line_numbers/line_length_guideline_column"));
 	text_editor->set_syntax_coloring(EditorSettings::get_singleton()->get("text_editor/highlighting/syntax_highlighting"));
 	text_editor->set_highlight_all_occurrences(EditorSettings::get_singleton()->get("text_editor/highlighting/highlight_all_occurrences"));
+	text_editor->set_highlight_current_line(EditorSettings::get_singleton()->get("text_editor/highlighting/highlight_current_line"));
 	text_editor->cursor_set_blink_enabled(EditorSettings::get_singleton()->get("text_editor/cursor/caret_blink"));
 	text_editor->cursor_set_blink_speed(EditorSettings::get_singleton()->get("text_editor/cursor/caret_blink_speed"));
 	text_editor->set_draw_breakpoint_gutter(EditorSettings::get_singleton()->get("text_editor/line_numbers/show_breakpoint_gutter"));
+	text_editor->set_hiding_enabled(EditorSettings::get_singleton()->get("text_editor/line_numbers/code_folding"));
+	text_editor->set_draw_fold_gutter(EditorSettings::get_singleton()->get("text_editor/line_numbers/code_folding"));
 	text_editor->cursor_set_block_mode(EditorSettings::get_singleton()->get("text_editor/cursor/block_caret"));
+	text_editor->set_smooth_scroll_enabled(EditorSettings::get_singleton()->get("text_editor/open_scripts/smooth_scrolling"));
+	text_editor->set_v_scroll_speed(EditorSettings::get_singleton()->get("text_editor/open_scripts/v_scroll_speed"));
 }
 
 void CodeTextEditor::set_error(const String &p_error) {
 
-	if (p_error != "") {
-		error->set_text(p_error);
-		error->show();
-	} else {
-		error->hide();
-	}
+	error->set_text(p_error);
 }
 
 void CodeTextEditor::_update_font() {
 
-	// FONTS
-	String editor_font = EDITOR_DEF("text_editor/theme/font", "");
-	bool font_overridden = false;
-	if (editor_font != "") {
-		Ref<Font> fnt = ResourceLoader::load(editor_font);
-		if (fnt.is_valid()) {
-			text_editor->add_font_override("font", fnt);
-			font_overridden = true;
-		}
-	}
-	if (!font_overridden) {
+	text_editor->add_font_override("font", get_font("source", "EditorFonts"));
 
-		text_editor->add_font_override("font", get_font("source", "EditorFonts"));
+	Ref<Font> status_bar_font = get_font("status_source", "EditorFonts");
+	int count = status_bar->get_child_count();
+	for (int i = 0; i < count; i++) {
+		Control *n = Object::cast_to<Control>(status_bar->get_child(i));
+		if (n)
+			n->add_font_override("font", status_bar_font);
 	}
 }
 
@@ -1195,17 +880,9 @@ CodeTextEditor::CodeTextEditor() {
 	text_editor->set_brace_matching(true);
 	text_editor->set_auto_indent(true);
 
-	MarginContainer *status_mc = memnew(MarginContainer);
-	add_child(status_mc);
-	status_mc->set("custom_constants/margin_left", 2);
-	status_mc->set("custom_constants/margin_top", 5);
-	status_mc->set("custom_constants/margin_right", 2);
-	status_mc->set("custom_constants/margin_bottom", 1);
-
-	HBoxContainer *status_bar = memnew(HBoxContainer);
-	status_mc->add_child(status_bar);
+	status_bar = memnew(HBoxContainer);
+	add_child(status_bar);
 	status_bar->set_h_size_flags(SIZE_EXPAND_FILL);
-	status_bar->add_child(memnew(Label)); //to keep the height if the other labels are not visible
 
 	idle = memnew(Timer);
 	add_child(idle);
@@ -1221,11 +898,32 @@ CodeTextEditor::CodeTextEditor() {
 
 	error = memnew(Label);
 	status_bar->add_child(error);
-	error->hide();
+	error->set_autowrap(true);
 	error->set_valign(Label::VALIGN_CENTER);
-	error->add_color_override("font_color", Color(1, 0.7, 0.6, 0.9));
+	error->add_color_override("font_color", EditorNode::get_singleton()->get_gui_base()->get_color("error_color", "Editor"));
+	error->add_font_override("font", EditorNode::get_singleton()->get_gui_base()->get_font("status_source", "EditorFonts"));
+	error->set_h_size_flags(SIZE_EXPAND_FILL); //required for it to display, given now it's clipping contents, do not touch
+	find_replace_bar->connect("error", error, "set_text");
 
-	status_bar->add_spacer();
+	status_bar->add_child(memnew(Label)); //to keep the height if the other labels are not visible
+
+	Label *zoom_txt = memnew(Label);
+	status_bar->add_child(zoom_txt);
+	zoom_txt->set_align(Label::ALIGN_RIGHT);
+	zoom_txt->set_valign(Label::VALIGN_CENTER);
+	zoom_txt->set_v_size_flags(SIZE_FILL);
+	zoom_txt->set_text(TTR("Zoom:"));
+	zoom_txt->add_font_override("font", EditorNode::get_singleton()->get_gui_base()->get_font("status_source", "EditorFonts"));
+
+	zoom_nb = memnew(Label);
+	status_bar->add_child(zoom_nb);
+	zoom_nb->set_valign(Label::VALIGN_CENTER);
+	zoom_nb->set_v_size_flags(SIZE_FILL);
+	zoom_nb->set_autowrap(true); // workaround to prevent resizing the label on each change, do not touch
+	zoom_nb->set_clip_text(true); // workaround to prevent resizing the label on each change, do not touch
+	zoom_nb->set_custom_minimum_size(Size2(60, 1) * EDSCALE);
+	zoom_nb->set_align(Label::ALIGN_RIGHT);
+	zoom_nb->add_font_override("font", EditorNode::get_singleton()->get_gui_base()->get_font("status_source", "EditorFonts"));
 
 	Label *line_txt = memnew(Label);
 	status_bar->add_child(line_txt);
@@ -1233,13 +931,17 @@ CodeTextEditor::CodeTextEditor() {
 	line_txt->set_valign(Label::VALIGN_CENTER);
 	line_txt->set_v_size_flags(SIZE_FILL);
 	line_txt->set_text(TTR("Line:"));
+	line_txt->add_font_override("font", EditorNode::get_singleton()->get_gui_base()->get_font("status_source", "EditorFonts"));
 
 	line_nb = memnew(Label);
 	status_bar->add_child(line_nb);
 	line_nb->set_valign(Label::VALIGN_CENTER);
 	line_nb->set_v_size_flags(SIZE_FILL);
-	line_nb->set_autowrap(true); // workaround to prevent resizing the label on each change
+	line_nb->set_autowrap(true); // workaround to prevent resizing the label on each change, do not touch
+	line_nb->set_clip_text(true); // workaround to prevent resizing the label on each change, do not touch
 	line_nb->set_custom_minimum_size(Size2(40, 1) * EDSCALE);
+	line_nb->set_align(Label::ALIGN_RIGHT);
+	line_nb->add_font_override("font", EditorNode::get_singleton()->get_gui_base()->get_font("status_source", "EditorFonts"));
 
 	Label *col_txt = memnew(Label);
 	status_bar->add_child(col_txt);
@@ -1247,13 +949,18 @@ CodeTextEditor::CodeTextEditor() {
 	col_txt->set_valign(Label::VALIGN_CENTER);
 	col_txt->set_v_size_flags(SIZE_FILL);
 	col_txt->set_text(TTR("Col:"));
+	col_txt->add_font_override("font", EditorNode::get_singleton()->get_gui_base()->get_font("status_source", "EditorFonts"));
 
 	col_nb = memnew(Label);
 	status_bar->add_child(col_nb);
 	col_nb->set_valign(Label::VALIGN_CENTER);
 	col_nb->set_v_size_flags(SIZE_FILL);
-	col_nb->set_autowrap(true); // workaround to prevent resizing the label on each change
+	col_nb->set_autowrap(true); // workaround to prevent resizing the label on each change, do not touch
+	col_nb->set_clip_text(true); // workaround to prevent resizing the label on each change, do not touch
 	col_nb->set_custom_minimum_size(Size2(40, 1) * EDSCALE);
+	col_nb->set_align(Label::ALIGN_RIGHT);
+	col_nb->set("custom_constants/margin_right", 0);
+	col_nb->add_font_override("font", EditorNode::get_singleton()->get_gui_base()->get_font("status_source", "EditorFonts"));
 
 	text_editor->connect("gui_input", this, "_text_editor_gui_input");
 	text_editor->connect("cursor_changed", this, "_line_col_changed");
@@ -1263,6 +970,7 @@ CodeTextEditor::CodeTextEditor() {
 	cs.push_back(".");
 	cs.push_back(",");
 	cs.push_back("(");
+	cs.push_back("=");
 	cs.push_back("$");
 	text_editor->set_completion(true, cs);
 	idle->connect("timeout", this, "_text_changed_idle_timeout");
@@ -1270,6 +978,8 @@ CodeTextEditor::CodeTextEditor() {
 	code_complete_timer->connect("timeout", this, "_code_complete_timer_timeout");
 
 	font_resize_val = 0;
+	font_size = EditorSettings::get_singleton()->get("interface/editor/code_font_size");
+	zoom_nb->set_text(itos(100 * font_size / 14) + "%");
 	font_resize_timer = memnew(Timer);
 	add_child(font_resize_timer);
 	font_resize_timer->set_one_shot(true);

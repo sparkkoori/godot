@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef TEXTURE_PROGRESS_H
 #define TEXTURE_PROGRESS_H
 
@@ -75,6 +76,21 @@ public:
 	void set_over_texture(const Ref<Texture> &p_texture);
 	Ref<Texture> get_over_texture() const;
 
+	void set_stretch_margin(Margin p_margin, int p_size);
+	int get_stretch_margin(Margin p_margin) const;
+
+	void set_nine_patch_stretch(bool p_stretch);
+	bool get_nine_patch_stretch() const;
+
+	void set_tint_under(const Color &p_tint);
+	Color get_tint_under() const;
+
+	void set_tint_progress(const Color &p_tint);
+	Color get_tint_progress() const;
+
+	void set_tint_over(const Color &p_tint);
+	Color get_tint_over() const;
+
 	Size2 get_minimum_size() const;
 
 	TextureProgress();
@@ -84,9 +100,15 @@ private:
 	float rad_init_angle;
 	float rad_max_degrees;
 	Point2 rad_center_off;
+	bool nine_patch_stretch;
+	int stretch_margin[4];
+	Color tint_under, tint_progress, tint_over;
 
 	Point2 unit_val_to_uv(float val);
 	Point2 get_relative_center();
+	void draw_nine_patch_stretched(const Ref<Texture> &p_texture, FillMode p_mode, double p_ratio, const Color &p_modulate);
 };
+
+VARIANT_ENUM_CAST(TextureProgress::FillMode);
 
 #endif // TEXTURE_PROGRESS_H

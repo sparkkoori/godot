@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -75,17 +75,31 @@ public:
 	void rotate(const Vector3 &p_axis, real_t p_phi);
 	Basis rotated(const Vector3 &p_axis, real_t p_phi) const;
 
+	void rotate_local(const Vector3 &p_axis, real_t p_phi);
+	Basis rotated_local(const Vector3 &p_axis, real_t p_phi) const;
+
 	void rotate(const Vector3 &p_euler);
 	Basis rotated(const Vector3 &p_euler) const;
 
+	void rotate(const Quat &p_quat);
+	Basis rotated(const Quat &p_quat) const;
+
 	Vector3 get_rotation() const;
 	void get_rotation_axis_angle(Vector3 &p_axis, real_t &p_angle) const;
+	void get_rotation_axis_angle_local(Vector3 &p_axis, real_t &p_angle) const;
 
-	void set_rotation_euler(const Vector3 &p_euler);
-	void set_rotation_axis_angle(const Vector3 &p_axis, real_t p_angle);
+	Vector3 rotref_posscale_decomposition(Basis &rotref) const;
 
-	Vector3 get_euler() const;
-	void set_euler(const Vector3 &p_euler);
+	Vector3 get_euler_xyz() const;
+	void set_euler_xyz(const Vector3 &p_euler);
+	Vector3 get_euler_yxz() const;
+	void set_euler_yxz(const Vector3 &p_euler);
+
+	Quat get_quat() const;
+	void set_quat(const Quat &p_quat);
+
+	Vector3 get_euler() const { return get_euler_yxz(); }
+	void set_euler(const Vector3 &p_euler) { set_euler_yxz(p_euler); }
 
 	void get_axis_angle(Vector3 &r_axis, real_t &r_angle) const;
 	void set_axis_angle(const Vector3 &p_axis, real_t p_phi);
@@ -93,8 +107,17 @@ public:
 	void scale(const Vector3 &p_scale);
 	Basis scaled(const Vector3 &p_scale) const;
 
-	Vector3 get_scale() const;
+	void scale_local(const Vector3 &p_scale);
+	Basis scaled_local(const Vector3 &p_scale) const;
+
 	void set_scale(const Vector3 &p_scale);
+	Vector3 get_scale() const;
+	Vector3 get_scale_abs() const;
+	Vector3 get_scale_local() const;
+
+	void set_axis_angle_scale(const Vector3 &p_axis, real_t p_phi, const Vector3 &p_scale);
+	void set_euler_scale(const Vector3 &p_euler, const Vector3 &p_scale);
+	void set_quat_scale(const Quat &p_quat, const Vector3 &p_scale);
 
 	// transposed dot products
 	_FORCE_INLINE_ real_t tdotx(const Vector3 &v) const {
@@ -126,7 +149,10 @@ public:
 	int get_orthogonal_index() const;
 	void set_orthogonal_index(int p_index);
 
+	void set_diagonal(const Vector3 p_diag);
+
 	bool is_orthogonal() const;
+	bool is_diagonal() const;
 	bool is_rotation() const;
 
 	operator String() const;
@@ -144,6 +170,12 @@ public:
 		elements[2][0] = zx;
 		elements[2][1] = zy;
 		elements[2][2] = zz;
+	}
+	_FORCE_INLINE_ void set(const Vector3 &p_x, const Vector3 &p_y, const Vector3 &p_z) {
+
+		set_axis(0, p_x);
+		set_axis(1, p_y);
+		set_axis(2, p_z);
 	}
 	_FORCE_INLINE_ Vector3 get_column(int i) const {
 
@@ -193,11 +225,13 @@ public:
 	bool is_symmetric() const;
 	Basis diagonalize();
 
-	operator Quat() const;
+	operator Quat() const { return get_quat(); }
 
-	Basis(const Quat &p_quat); // euler
-	Basis(const Vector3 &p_euler); // euler
-	Basis(const Vector3 &p_axis, real_t p_phi);
+	Basis(const Quat &p_quat) { set_quat(p_quat); };
+	Basis(const Vector3 &p_euler) { set_euler(p_euler); }
+	Basis(const Vector3 &p_axis, real_t p_phi) { set_axis_angle(p_axis, p_phi); }
+	Basis(const Vector3 &p_axis, real_t p_phi, const Vector3 &p_scale) { set_axis_angle_scale(p_axis, p_phi, p_scale); }
+	Basis(const Quat &p_quat, const Vector3 &p_scale) { set_quat_scale(p_quat, p_scale); }
 
 	_FORCE_INLINE_ Basis(const Vector3 &row0, const Vector3 &row1, const Vector3 &row2) {
 		elements[0] = row0;

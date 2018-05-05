@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef AUDIOEFFECTCOMPRESSOR_H
 #define AUDIOEFFECTCOMPRESSOR_H
 
@@ -51,7 +52,7 @@ class AudioEffectCompressor : public AudioEffect {
 	GDCLASS(AudioEffectCompressor, AudioEffect)
 
 	friend class AudioEffectCompressorInstance;
-	float treshold;
+	float threshold;
 	float ratio;
 	float gain;
 	float attack_us;
@@ -66,8 +67,8 @@ protected:
 public:
 	Ref<AudioEffectInstance> instance();
 
-	void set_treshold(float p_treshold);
-	float get_treshold() const;
+	void set_threshold(float p_threshold);
+	float get_threshold() const;
 
 	void set_ratio(float p_ratio);
 	float get_ratio() const;

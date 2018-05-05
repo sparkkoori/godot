@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,13 +27,10 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifdef STOREKIT_ENABLED
 
 #include "in_app_store.h"
-
-#ifdef MODULE_FUSEBOXX_ENABLED
-#import "modules/fuseboxx/ios/FuseSDK.h"
-#endif
 
 extern "C" {
 #import <Foundation/Foundation.h>
@@ -66,6 +63,7 @@ InAppStore *InAppStore::instance = NULL;
 
 void InAppStore::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("request_product_info"), &InAppStore::request_product_info);
+	ClassDB::bind_method(D_METHOD("restore_purchases"), &InAppStore::restore_purchases);
 	ClassDB::bind_method(D_METHOD("purchase"), &InAppStore::purchase);
 
 	ClassDB::bind_method(D_METHOD("get_pending_event_count"), &InAppStore::get_pending_event_count);
@@ -92,6 +90,7 @@ void InAppStore::_bind_methods() {
 	PoolRealArray prices;
 	PoolStringArray ids;
 	PoolStringArray localized_prices;
+	PoolStringArray currency_codes;
 
 	for (int i = 0; i < [products count]; i++) {
 
@@ -105,12 +104,14 @@ void InAppStore::_bind_methods() {
 		prices.push_back([product.price doubleValue]);
 		ids.push_back(String::utf8([product.productIdentifier UTF8String]));
 		localized_prices.push_back(String::utf8([product.localizedPrice UTF8String]));
+		currency_codes.push_back(String::utf8([[[product priceLocale] objectForKey:NSLocaleCurrencyCode] UTF8String]));
 	};
 	ret["titles"] = titles;
 	ret["descriptions"] = descriptions;
 	ret["prices"] = prices;
 	ret["ids"] = ids;
 	ret["localized_prices"] = localized_prices;
+	ret["currency_codes"] = currency_codes;
 
 	PoolStringArray invalid_ids;
 
@@ -149,6 +150,14 @@ Error InAppStore::request_product_info(Variant p_params) {
 
 	request.delegate = delegate;
 	[request start];
+
+	return OK;
+};
+
+Error InAppStore::restore_purchases() {
+
+	printf("restoring purchases!\n");
+	[[SKPaymentQueue defaultQueue] restoreCompletedTransactions];
 
 	return OK;
 };
@@ -221,10 +230,6 @@ Error InAppStore::request_product_info(Variant p_params) {
 					[pending_transactions setObject:transaction forKey:transaction.payment.productIdentifier];
 				}
 
-#ifdef MODULE_FUSEBOXX_ENABLED
-				printf("Registering transaction on Fuseboxx!\n");
-				[FuseSDK registerInAppPurchase:transaction];
-#endif
 			}; break;
 			case SKPaymentTransactionStateFailed: {
 				printf("status transaction failed!\n");
@@ -233,6 +238,7 @@ Error InAppStore::request_product_info(Variant p_params) {
 				ret["type"] = "purchase";
 				ret["result"] = "error";
 				ret["product_id"] = pid;
+				ret["error"] = String::utf8([transaction.error.localizedDescription UTF8String]);
 				InAppStore::get_singleton()->_post_event(ret);
 				[[SKPaymentQueue defaultQueue] finishTransaction:transaction];
 			} break;
@@ -240,6 +246,11 @@ Error InAppStore::request_product_info(Variant p_params) {
 				printf("status transaction restored!\n");
 				String pid = String::utf8([transaction.originalTransaction.payment.productIdentifier UTF8String]);
 				InAppStore::get_singleton()->_record_purchase(pid);
+				Dictionary ret;
+				ret["type"] = "restore";
+				ret["result"] = "ok";
+				ret["product_id"] = pid;
+				InAppStore::get_singleton()->_post_event(ret);
 				[[SKPaymentQueue defaultQueue] finishTransaction:transaction];
 			} break;
 			default: {

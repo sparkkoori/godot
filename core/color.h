@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef COLOR_H
 #define COLOR_H
 
@@ -51,8 +52,9 @@ struct Color {
 	bool operator==(const Color &p_color) const { return (r == p_color.r && g == p_color.g && b == p_color.b && a == p_color.a); }
 	bool operator!=(const Color &p_color) const { return (r != p_color.r || g != p_color.g || b != p_color.b || a != p_color.a); }
 
-	uint32_t to_32() const;
-	uint32_t to_ARGB32() const;
+	uint32_t to_rgba32() const;
+	uint32_t to_argb32() const;
+	uint32_t to_abgr32() const;
 	float gray() const;
 	float get_h() const;
 	float get_s() const;
@@ -65,6 +67,23 @@ struct Color {
 	_FORCE_INLINE_ const float &operator[](int idx) const {
 		return components[idx];
 	}
+
+	Color operator+(const Color &p_color) const;
+	void operator+=(const Color &p_color);
+
+	Color operator-() const;
+	Color operator-(const Color &p_color) const;
+	void operator-=(const Color &p_color);
+
+	Color operator*(const Color &p_color) const;
+	Color operator*(const real_t &rvalue) const;
+	void operator*=(const Color &p_color);
+	void operator*=(const real_t &rvalue);
+
+	Color operator/(const Color &p_color) const;
+	Color operator/(const real_t &rvalue) const;
+	void operator/=(const Color &p_color);
+	void operator/=(const real_t &rvalue);
 
 	void invert();
 	void contrast();
@@ -80,6 +99,24 @@ struct Color {
 		res.b += (p_t * (p_b.b - b));
 		res.a += (p_t * (p_b.a - a));
 
+		return res;
+	}
+
+	_FORCE_INLINE_ Color darkened(float p_amount) const {
+
+		Color res = *this;
+		res.r = res.r * (1.0f - p_amount);
+		res.g = res.g * (1.0f - p_amount);
+		res.b = res.b * (1.0f - p_amount);
+		return res;
+	}
+
+	_FORCE_INLINE_ Color lightened(float p_amount) const {
+
+		Color res = *this;
+		res.r = res.r + (1.0f - res.r) * p_amount;
+		res.g = res.g + (1.0f - res.g) * p_amount;
+		res.b = res.b + (1.0f - res.b) * p_amount;
 		return res;
 	}
 
@@ -140,12 +177,20 @@ struct Color {
 				b < 0.04045 ? b * (1.0 / 12.92) : Math::pow((b + 0.055) * (1.0 / (1 + 0.055)), 2.4),
 				a);
 	}
+	_FORCE_INLINE_ Color to_srgb() const {
+
+		return Color(
+				r < 0.0031308 ? 12.92 * r : (1.0 + 0.055) * Math::pow(r, 1.0f / 2.4f) - 0.055,
+				g < 0.0031308 ? 12.92 * g : (1.0 + 0.055) * Math::pow(g, 1.0f / 2.4f) - 0.055,
+				b < 0.0031308 ? 12.92 * b : (1.0 + 0.055) * Math::pow(b, 1.0f / 2.4f) - 0.055, a);
+	}
 
 	static Color hex(uint32_t p_hex);
 	static Color html(const String &p_color);
 	static bool html_is_valid(const String &p_color);
 	static Color named(const String &p_name);
 	String to_html(bool p_alpha = true) const;
+	Color from_hsv(float p_h, float p_s, float p_v, float p_a);
 
 	_FORCE_INLINE_ bool operator<(const Color &p_color) const; //used in set keys
 	operator String() const;

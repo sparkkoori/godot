@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,11 +27,14 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "portal.h"
-#include "global_config.h"
+#include "project_settings.h"
 #include "scene/resources/surface_tool.h"
 #include "servers/visual_server.h"
 
+// FIXME: This will be removed, kept as reference for new implementation
+#if 0
 bool Portal::_set(const StringName &p_name, const Variant &p_value) {
 
 	if (p_name == "shape") {
@@ -96,7 +99,7 @@ void Portal::_get_property_list(List<PropertyInfo> *p_list) const {
 	p_list->push_back(PropertyInfo(Variant::REAL, "connect_range", PROPERTY_HINT_RANGE, "0.1,4096,0.01"));
 }
 
-Rect3 Portal::get_aabb() const {
+AABB Portal::get_aabb() const {
 
 	return aabb;
 }
@@ -226,3 +229,4 @@ Portal::~Portal() {
 
 	VisualServer::get_singleton()->free(portal);
 }
+#endif

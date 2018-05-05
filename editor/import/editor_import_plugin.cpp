@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "editor_import_plugin.h"
 #include "core/script_language.h"
 
@@ -56,7 +57,7 @@ String EditorImportPlugin::get_preset_name(int p_idx) const {
 	return get_script_instance()->call("get_preset_name", p_idx);
 }
 
-int EditorImportPlugin::get_preset_count() {
+int EditorImportPlugin::get_preset_count() const {
 	ERR_FAIL_COND_V(!(get_script_instance() && get_script_instance()->has_method("get_preset_count")), 0);
 	return get_script_instance()->call("get_preset_count");
 }
@@ -69,6 +70,20 @@ String EditorImportPlugin::get_save_extension() const {
 String EditorImportPlugin::get_resource_type() const {
 	ERR_FAIL_COND_V(!(get_script_instance() && get_script_instance()->has_method("get_resource_type")), "");
 	return get_script_instance()->call("get_resource_type");
+}
+
+float EditorImportPlugin::get_priority() const {
+	if (!(get_script_instance() && get_script_instance()->has_method("get_priority"))) {
+		return ResourceImporter::get_priority();
+	}
+	return get_script_instance()->call("get_priority");
+}
+
+int EditorImportPlugin::get_import_order() const {
+	if (!(get_script_instance() && get_script_instance()->has_method("get_import_order"))) {
+		return ResourceImporter::get_import_order();
+	}
+	return get_script_instance()->call("get_import_order");
 }
 
 void EditorImportPlugin::get_import_options(List<ResourceImporter::ImportOption> *r_options, int p_preset) const {
@@ -147,6 +162,8 @@ void EditorImportPlugin::_bind_methods() {
 	ClassDB::add_virtual_method(get_class_static(), MethodInfo(Variant::ARRAY, "get_import_options", PropertyInfo(Variant::INT, "preset")));
 	ClassDB::add_virtual_method(get_class_static(), MethodInfo(Variant::STRING, "get_save_extension"));
 	ClassDB::add_virtual_method(get_class_static(), MethodInfo(Variant::STRING, "get_resource_type"));
+	ClassDB::add_virtual_method(get_class_static(), MethodInfo(Variant::REAL, "get_priority"));
+	ClassDB::add_virtual_method(get_class_static(), MethodInfo(Variant::INT, "get_import_order"));
 	ClassDB::add_virtual_method(get_class_static(), MethodInfo(Variant::BOOL, "get_option_visibility", PropertyInfo(Variant::STRING, "option"), PropertyInfo(Variant::DICTIONARY, "options")));
 	ClassDB::add_virtual_method(get_class_static(), MethodInfo(Variant::INT, "import", PropertyInfo(Variant::STRING, "source_file"), PropertyInfo(Variant::STRING, "save_path"), PropertyInfo(Variant::DICTIONARY, "options"), PropertyInfo(Variant::ARRAY, "r_platform_variants"), PropertyInfo(Variant::ARRAY, "r_gen_files")));
 }

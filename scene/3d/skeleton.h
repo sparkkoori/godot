@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef SKELETON_H
 #define SKELETON_H
 
@@ -57,6 +58,8 @@ class Skeleton : public Spatial {
 		bool custom_pose_enable;
 		Transform custom_pose;
 
+		Transform transform_final;
+
 		List<uint32_t> nodes_bound;
 
 		Bone() {
@@ -80,19 +83,19 @@ class Skeleton : public Spatial {
 	Array _get_bound_child_nodes_to_bone(int p_bone) const {
 
 		Array bound;
-		List<Node *> childs;
-		get_bound_child_nodes_to_bone(p_bone, &childs);
+		List<Node *> children;
+		get_bound_child_nodes_to_bone(p_bone, &children);
 
-		for (int i = 0; i < childs.size(); i++) {
+		for (int i = 0; i < children.size(); i++) {
 
-			bound.push_back(childs[i]);
+			bound.push_back(children[i]);
 		}
 		return bound;
 	}
 
 protected:
-	bool _get(const StringName &p_name, Variant &r_ret) const;
-	bool _set(const StringName &p_name, const Variant &p_value);
+	bool _get(const StringName &p_path, Variant &r_ret) const;
+	bool _set(const StringName &p_path, const Variant &p_value);
 	void _get_property_list(List<PropertyInfo> *p_list) const;
 	void _notification(int p_what);
 	static void _bind_methods();
@@ -113,7 +116,7 @@ public:
 	void set_bone_parent(int p_bone, int p_parent);
 	int get_bone_parent(int p_bone) const;
 
-	void unparent_bone_and_rest(int p_idx);
+	void unparent_bone_and_rest(int p_bone);
 
 	void set_bone_disable_rest(int p_bone, bool p_disable);
 	bool is_bone_rest_disabled(int p_bone) const;

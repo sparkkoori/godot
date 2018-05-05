@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,45 +27,30 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef LINE_BUILDER_H
 #define LINE_BUILDER_H
 
 #include "color.h"
+#include "line_2d.h"
 #include "math_2d.h"
 #include "scene/resources/color_ramp.h"
-
-enum LineJointMode {
-	LINE_JOINT_SHARP = 0,
-	LINE_JOINT_BEVEL,
-	LINE_JOINT_ROUND
-};
-
-enum LineCapMode {
-	LINE_CAP_NONE = 0,
-	LINE_CAP_BOX,
-	LINE_CAP_ROUND
-};
-
-enum LineTextureMode {
-	LINE_TEXTURE_NONE = 0,
-	LINE_TEXTURE_TILE
-	// TODO STRETCH mode
-};
 
 class LineBuilder {
 public:
 	// TODO Move in a struct and reference it
 	// Input
 	Vector<Vector2> points;
-	LineJointMode joint_mode;
-	LineCapMode begin_cap_mode;
-	LineCapMode end_cap_mode;
+	Line2D::LineJointMode joint_mode;
+	Line2D::LineCapMode begin_cap_mode;
+	Line2D::LineCapMode end_cap_mode;
 	float width;
 	Color default_color;
 	Gradient *gradient;
-	LineTextureMode texture_mode;
+	Line2D::LineTextureMode texture_mode;
 	float sharp_limit;
 	int round_precision;
+	float tile_aspect; // w/h
 	// TODO offset_joints option (offers alternative implementation of round joints)
 
 	// TODO Move in a struct and reference it

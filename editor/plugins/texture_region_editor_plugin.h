@@ -3,12 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
-/*                                                                       */
-/* Author: Mariano Suligoy                                               */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -37,9 +35,14 @@
 #include "editor/editor_node.h"
 #include "editor/editor_plugin.h"
 #include "scene/2d/sprite.h"
-#include "scene/gui/patch_9_rect.h"
+#include "scene/gui/nine_patch_rect.h"
 #include "scene/resources/style_box.h"
 #include "scene/resources/texture.h"
+#include "scene/resources/tile_set.h"
+
+/**
+	@author Mariano Suligoy
+*/
 
 class TextureRegionEditor : public Control {
 
@@ -53,6 +56,8 @@ class TextureRegionEditor : public Control {
 	};
 
 	friend class TextureRegionEditorPlugin;
+	friend class TileSetEditor;
+	friend class TileSetEditorPlugin;
 	MenuButton *snap_mode_button;
 	TextureRect *icon_zoom;
 	ToolButton *zoom_in;
@@ -82,16 +87,18 @@ class TextureRegionEditor : public Control {
 	Vector2 snap_step;
 	Vector2 snap_separation;
 
-	NinePatchRect *node_patch9;
+	NinePatchRect *node_ninepatch;
 	Sprite *node_sprite;
 	Ref<StyleBoxTexture> obj_styleBox;
 	Ref<AtlasTexture> atlas_tex;
+	Ref<TileSet> tile_set;
 
 	Rect2 rect;
 	Rect2 rect_prev;
 	float prev_margin;
 	int edited_margin;
 	List<Rect2> autoslice_cache;
+	int selected_tile;
 
 	bool drag;
 	bool creating;
@@ -132,15 +139,15 @@ public:
 class TextureRegionEditorPlugin : public EditorPlugin {
 	GDCLASS(TextureRegionEditorPlugin, EditorPlugin);
 
-	Button *region_button;
+	Button *texture_region_button;
 	TextureRegionEditor *region_editor;
 	EditorNode *editor;
 
 public:
 	virtual String get_name() const { return "TextureRegion"; }
 	bool has_main_screen() const { return false; }
-	virtual void edit(Object *p_node);
-	virtual bool handles(Object *p_node) const;
+	virtual void edit(Object *p_object);
+	virtual bool handles(Object *p_object) const;
 	virtual void make_visible(bool p_visible);
 	void set_state(const Dictionary &p_state);
 	Dictionary get_state() const;

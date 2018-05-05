@@ -1,12 +1,12 @@
 /*************************************************************************/
-/*  joypad.cpp                                                         */
+/*  joypad.cpp                                                           */
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "joypad.h"
 #include <oleauto.h>
 #include <wbemidl.h>
@@ -235,13 +236,13 @@ void JoypadWindows::setup_joypad_object(const DIDEVICEOBJECTINSTANCE *ob, int p_
 	}
 }
 
-BOOL CALLBACK JoypadWindows::enumCallback(const DIDEVICEINSTANCE *instance, void *pContext) {
+BOOL CALLBACK JoypadWindows::enumCallback(const DIDEVICEINSTANCE *p_instance, void *p_context) {
 
-	JoypadWindows *self = (JoypadWindows *)pContext;
-	if (self->is_xinput_device(&instance->guidProduct)) {
+	JoypadWindows *self = (JoypadWindows *)p_context;
+	if (self->is_xinput_device(&p_instance->guidProduct)) {
 		return DIENUM_CONTINUE;
 	}
-	self->setup_dinput_joypad(instance);
+	self->setup_dinput_joypad(p_instance);
 	return DIENUM_CONTINUE;
 }
 
@@ -379,7 +380,9 @@ void JoypadWindows::process_joypads() {
 			IDirectInputDevice8_Acquire(joy->di_joy);
 			joy->di_joy->Poll();
 		}
-		if (FAILED(hr = joy->di_joy->GetDeviceState(sizeof(DIJOYSTATE2), &js))) {
+
+		hr = joy->di_joy->GetDeviceState(sizeof(DIJOYSTATE2), &js);
+		if (FAILED(hr)) {
 
 			//printf("failed to read joy #%d\n", i);
 			continue;

@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "ustring.h"
 #include <wchar.h>
 //#include "math_funcs.h"
@@ -802,7 +803,6 @@ bool test_28() {
 bool test_29() {
 
 	bool state = true;
-	bool success = false;
 
 	IP_Address ip0("2001:0db8:85a3:0000:0000:8a2e:0370:7334");
 	OS::get_singleton()->print("ip0 is %ls\n", String(ip0).c_str());
@@ -817,7 +817,7 @@ bool test_29() {
 	OS::get_singleton()->print("ip6 is %ls\n", String(ip3).c_str());
 
 	String ip4 = "192.168.0.1";
-	success = ip4.is_valid_ip_address();
+	bool success = ip4.is_valid_ip_address();
 	OS::get_singleton()->print("Is valid ipv4: %ls, %s\n", ip4.c_str(), success ? "OK" : "FAIL");
 	if (!success) state = false;
 
@@ -893,7 +893,7 @@ TestFunc test_funcs[] = {
 
 MainLoop *test() {
 
-	/** A character length != wchar_t may be forced, so the tests wont work */
+	/** A character length != wchar_t may be forced, so the tests won't work */
 
 	ERR_FAIL_COND_V(sizeof(CharType) != sizeof(wchar_t), NULL);
 
@@ -920,4 +920,4 @@ MainLoop *test() {
 
 	return NULL;
 }
-}
+} // namespace TestString

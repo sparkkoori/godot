@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef METHOD_PTRCALL_H
 #define METHOD_PTRCALL_H
 
@@ -60,49 +61,69 @@ struct PtrToArg {
 		}                                                              \
 	}
 
-#define MAKE_PTRARGR(m_type, m_ret)                                    \
-	template <>                                                        \
-	struct PtrToArg<m_type> {                                          \
-		_FORCE_INLINE_ static m_type convert(const void *p_ptr) {      \
-			return *reinterpret_cast<const m_type *>(p_ptr);           \
-		}                                                              \
-		_FORCE_INLINE_ static void encode(m_type p_val, void *p_ptr) { \
-			*((m_ret *)p_ptr) = p_val;                                 \
-		}                                                              \
-	};                                                                 \
-	template <>                                                        \
-	struct PtrToArg<const m_type &> {                                  \
-		_FORCE_INLINE_ static m_type convert(const void *p_ptr) {      \
-			return *reinterpret_cast<const m_type *>(p_ptr);           \
-		}                                                              \
-		_FORCE_INLINE_ static void encode(m_type p_val, void *p_ptr) { \
-			*((m_ret *)p_ptr) = p_val;                                 \
-		}                                                              \
+#define MAKE_PTRARGCONV(m_type, m_conv)                                           \
+	template <>                                                                   \
+	struct PtrToArg<m_type> {                                                     \
+		_FORCE_INLINE_ static m_type convert(const void *p_ptr) {                 \
+			return static_cast<m_type>(*reinterpret_cast<const m_conv *>(p_ptr)); \
+		}                                                                         \
+		_FORCE_INLINE_ static void encode(m_type p_val, void *p_ptr) {            \
+			*((m_conv *)p_ptr) = static_cast<m_conv>(p_val);                      \
+		}                                                                         \
+	};                                                                            \
+	template <>                                                                   \
+	struct PtrToArg<const m_type &> {                                             \
+		_FORCE_INLINE_ static m_type convert(const void *p_ptr) {                 \
+			return static_cast<m_type>(*reinterpret_cast<const m_conv *>(p_ptr)); \
+		}                                                                         \
+		_FORCE_INLINE_ static void encode(m_type p_val, void *p_ptr) {            \
+			*((m_conv *)p_ptr) = static_cast<m_conv>(p_val);                      \
+		}                                                                         \
+	}
+
+#define MAKE_PTRARG_BY_REFERENCE(m_type)                                      \
+	template <>                                                               \
+	struct PtrToArg<m_type> {                                                 \
+		_FORCE_INLINE_ static m_type convert(const void *p_ptr) {             \
+			return *reinterpret_cast<const m_type *>(p_ptr);                  \
+		}                                                                     \
+		_FORCE_INLINE_ static void encode(const m_type &p_val, void *p_ptr) { \
+			*((m_type *)p_ptr) = p_val;                                       \
+		}                                                                     \
+	};                                                                        \
+	template <>                                                               \
+	struct PtrToArg<const m_type &> {                                         \
+		_FORCE_INLINE_ static m_type convert(const void *p_ptr) {             \
+			return *reinterpret_cast<const m_type *>(p_ptr);                  \
+		}                                                                     \
+		_FORCE_INLINE_ static void encode(const m_type &p_val, void *p_ptr) { \
+			*((m_type *)p_ptr) = p_val;                                       \
+		}                                                                     \
 	}
 
 MAKE_PTRARG(bool);
-MAKE_PTRARGR(uint8_t, int);
-MAKE_PTRARGR(int8_t, int);
-MAKE_PTRARGR(uint16_t, int);
-MAKE_PTRARGR(int16_t, int);
-MAKE_PTRARGR(uint32_t, int);
-MAKE_PTRARGR(int32_t, int);
-MAKE_PTRARGR(int64_t, int);
-MAKE_PTRARGR(uint64_t, int);
-MAKE_PTRARG(float);
-MAKE_PTRARGR(double, float);
+MAKE_PTRARGCONV(uint8_t, int64_t);
+MAKE_PTRARGCONV(int8_t, int64_t);
+MAKE_PTRARGCONV(uint16_t, int64_t);
+MAKE_PTRARGCONV(int16_t, int64_t);
+MAKE_PTRARGCONV(uint32_t, int64_t);
+MAKE_PTRARGCONV(int32_t, int64_t);
+MAKE_PTRARG(int64_t);
+MAKE_PTRARG(uint64_t);
+MAKE_PTRARGCONV(float, double);
+MAKE_PTRARG(double);
 
 MAKE_PTRARG(String);
 MAKE_PTRARG(Vector2);
 MAKE_PTRARG(Rect2);
-MAKE_PTRARG(Vector3);
+MAKE_PTRARG_BY_REFERENCE(Vector3);
 MAKE_PTRARG(Transform2D);
-MAKE_PTRARG(Plane);
+MAKE_PTRARG_BY_REFERENCE(Plane);
 MAKE_PTRARG(Quat);
-MAKE_PTRARG(Rect3);
-MAKE_PTRARG(Basis);
-MAKE_PTRARG(Transform);
-MAKE_PTRARG(Color);
+MAKE_PTRARG_BY_REFERENCE(AABB);
+MAKE_PTRARG_BY_REFERENCE(Basis);
+MAKE_PTRARG_BY_REFERENCE(Transform);
+MAKE_PTRARG_BY_REFERENCE(Color);
 MAKE_PTRARG(NodePath);
 MAKE_PTRARG(RID);
 MAKE_PTRARG(Dictionary);
@@ -114,7 +135,7 @@ MAKE_PTRARG(PoolStringArray);
 MAKE_PTRARG(PoolVector2Array);
 MAKE_PTRARG(PoolVector3Array);
 MAKE_PTRARG(PoolColorArray);
-MAKE_PTRARG(Variant);
+MAKE_PTRARG_BY_REFERENCE(Variant);
 
 //this is for Object
 
@@ -311,8 +332,29 @@ MAKE_DVECARR(Plane);
 		}                                                              \
 	}
 
+#define MAKE_STRINGCONV_BY_REFERENCE(m_type)                                  \
+	template <>                                                               \
+	struct PtrToArg<m_type> {                                                 \
+		_FORCE_INLINE_ static m_type convert(const void *p_ptr) {             \
+			m_type s = *reinterpret_cast<const String *>(p_ptr);              \
+			return s;                                                         \
+		}                                                                     \
+		_FORCE_INLINE_ static void encode(const m_type &p_vec, void *p_ptr) { \
+			String *arr = reinterpret_cast<String *>(p_ptr);                  \
+			*arr = p_vec;                                                     \
+		}                                                                     \
+	};                                                                        \
+                                                                              \
+	template <>                                                               \
+	struct PtrToArg<const m_type &> {                                         \
+		_FORCE_INLINE_ static m_type convert(const void *p_ptr) {             \
+			m_type s = *reinterpret_cast<const String *>(p_ptr);              \
+			return s;                                                         \
+		}                                                                     \
+	}
+
 MAKE_STRINGCONV(StringName);
-MAKE_STRINGCONV(IP_Address);
+MAKE_STRINGCONV_BY_REFERENCE(IP_Address);
 
 template <>
 struct PtrToArg<PoolVector<Face3> > {

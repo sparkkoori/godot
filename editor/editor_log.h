@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef EDITOR_LOG_H
 #define EDITOR_LOG_H
 
@@ -50,8 +51,7 @@ class EditorLog : public VBoxContainer {
 	RichTextLabel *log;
 	HBoxContainer *title_hb;
 	//PaneDrag *pd;
-	Control *ec;
-	PanelContainer *pc;
+	ToolButton *tool_button;
 
 	static void _error_handler(void *p_self, const char *p_func, const char *p_file, int p_line, const char *p_error, const char *p_errorexp, ErrorHandlerType p_type);
 
@@ -66,10 +66,10 @@ class EditorLog : public VBoxContainer {
 protected:
 	static void _bind_methods();
 	void _notification(int p_what);
-	void _override_logger_styles();
 
 public:
 	void add_message(const String &p_msg, bool p_error = false);
+	void set_tool_button(ToolButton *p_tool_button);
 	void deinit();
 
 	void clear();

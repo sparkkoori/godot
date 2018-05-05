@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "test_shader_lang.h"
 
 #include "os/file_access.h"
@@ -37,7 +38,6 @@
 #include "scene/gui/control.h"
 #include "scene/gui/text_edit.h"
 #include "servers/visual/shader_language.h"
-//#include "drivers/gles2/shader_compiler_gles2.h"
 
 typedef ShaderLanguage SL;
 
@@ -56,8 +56,6 @@ static String _mktab(int p_level) {
 static String _typestr(SL::DataType p_type) {
 
 	return ShaderLanguage::get_datatype_name(p_type);
-
-	return "";
 }
 
 static String _prestr(SL::DataPrecision p_pres) {
@@ -319,8 +317,9 @@ MainLoop *test() {
 	SL sl;
 	print_line("tokens:\n\n" + sl.token_debug(code));
 
-	Map<StringName, Map<StringName, SL::DataType> > dt;
-	dt["fragment"]["ALBEDO"] = SL::TYPE_VEC3;
+	Map<StringName, SL::FunctionInfo> dt;
+	dt["fragment"].built_ins["ALBEDO"] = SL::TYPE_VEC3;
+	dt["fragment"].can_discard = true;
 
 	Set<String> rm;
 	rm.insert("popo");
@@ -341,4 +340,4 @@ MainLoop *test() {
 
 	return NULL;
 }
-}
+} // namespace TestShaderLang

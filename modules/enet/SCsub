@@ -3,11 +3,11 @@
 Import('env')
 Import('env_modules')
 
-# Thirdparty source files
-
 env_enet = env_modules.Clone()
 
-if (env['builtin_enet'] != 'no'):
+# Thirdparty source files
+
+if env['builtin_enet']:
     thirdparty_dir = "#thirdparty/enet/"
     thirdparty_sources = [
         "godot.cpp",

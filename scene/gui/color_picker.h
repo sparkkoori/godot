@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef COLOR_PICKER_H
 #define COLOR_PICKER_H
 
@@ -47,7 +48,6 @@ class ColorPicker : public BoxContainer {
 
 private:
 	Control *screen;
-	Ref<Image> last_capture;
 	Control *uv_edit;
 	Control *w_edit;
 	TextureRect *sample;
@@ -80,14 +80,17 @@ private:
 	void _update_text_value();
 	void _text_type_toggled();
 	void _sample_draw();
-	void _hsv_draw(int p_wich, Control *c);
+	void _hsv_draw(int p_which, Control *c);
 
-	void _uv_input(const Ref<InputEvent> &p_input);
-	void _w_input(const Ref<InputEvent> &p_input);
-	void _preset_input(const Ref<InputEvent> &p_input);
-	void _screen_input(const Ref<InputEvent> &p_input);
+	void _uv_input(const Ref<InputEvent> &p_event);
+	void _w_input(const Ref<InputEvent> &p_event);
+	void _preset_input(const Ref<InputEvent> &p_event);
+	void _screen_input(const Ref<InputEvent> &p_event);
 	void _add_preset_pressed();
 	void _screen_pick_pressed();
+	void _focus_enter();
+	void _focus_exit();
+	void _html_focus_exit();
 
 protected:
 	void _notification(int);
@@ -117,6 +120,8 @@ class ColorPickerButton : public Button {
 	ColorPicker *picker;
 
 	void _color_changed(const Color &p_color);
+	void _modal_closed();
+
 	virtual void pressed();
 
 protected:
@@ -130,7 +135,8 @@ public:
 	void set_edit_alpha(bool p_show);
 	bool is_editing_alpha() const;
 
-	ColorPicker *get_picker();
+	ColorPicker *get_picker() const;
+	PopupPanel *get_popup() const;
 
 	ColorPickerButton();
 };

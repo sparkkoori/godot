@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "quick_open.h"
 
 #include "os/keyboard.h"
@@ -171,24 +172,7 @@ void EditorQuickOpen::_parse_fs(EditorFileSystemDirectory *efsd, Vector<Pair<Str
 			Pair<String, Ref<Texture> > pair;
 			pair.first = file;
 			pair.second = get_icon((has_icon(efsd->get_file_type(i), ei) ? efsd->get_file_type(i) : ot), ei);
-
-			if (search_text != String() && list.size() > 0) {
-
-				float this_sim = _path_cmp(search_text, file);
-				float other_sim = _path_cmp(list[0].first, file);
-				int pos = 1;
-
-				while (pos < list.size() && this_sim <= other_sim) {
-					other_sim = _path_cmp(list[pos++].first, file);
-				}
-
-				pos = this_sim >= other_sim ? pos - 1 : pos;
-				list.insert(pos, pair);
-
-			} else {
-
-				list.push_back(pair);
-			}
+			list.push_back(pair);
 		}
 	}
 
@@ -200,6 +184,40 @@ void EditorQuickOpen::_parse_fs(EditorFileSystemDirectory *efsd, Vector<Pair<Str
 	}
 }
 
+Vector<Pair<String, Ref<Texture> > > EditorQuickOpen::_sort_fs(Vector<Pair<String, Ref<Texture> > > &list) {
+
+	String search_text = search_box->get_text();
+	Vector<Pair<String, Ref<Texture> > > sorted_list;
+
+	if (search_text == String() || list.size() == 0)
+		return list;
+
+	Vector<float> scores;
+	scores.resize(list.size());
+	for (int i = 0; i < list.size(); i++)
+		scores[i] = _path_cmp(search_text, list[i].first);
+
+	while (list.size() > 0) {
+
+		float best_score = 0.0f;
+		int best_idx = 0;
+
+		for (int i = 0; i < list.size(); i++) {
+			float current_score = scores[i];
+			if (current_score > best_score) {
+				best_score = current_score;
+				best_idx = i;
+			}
+		}
+
+		sorted_list.push_back(list[best_idx]);
+		list.remove(best_idx);
+		scores.remove(best_idx);
+	}
+
+	return sorted_list;
+}
+
 void EditorQuickOpen::_update_search() {
 
 	search_options->clear();
@@ -208,6 +226,7 @@ void EditorQuickOpen::_update_search() {
 	Vector<Pair<String, Ref<Texture> > > list;
 
 	_parse_fs(efsd, list);
+	list = _sort_fs(list);
 
 	for (int i = 0; i < list.size(); i++) {
 		TreeItem *ti = search_options->create_item(root);

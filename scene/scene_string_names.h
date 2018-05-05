@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,10 +27,11 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef SCENE_STRING_NAMES_H
 #define SCENE_STRING_NAMES_H
 
-#include "path_db.h"
+#include "node_path.h"
 #include "string_db.h"
 class SceneStringNames {
 
@@ -64,10 +65,11 @@ public:
 	StringName gui_input;
 	StringName _gui_input;
 	StringName item_rect_changed;
-	StringName shader_shader;
+	StringName shader;
 	StringName shader_unshaded;
 	StringName shading_mode;
 	StringName tree_entered;
+	StringName tree_exiting;
 	StringName tree_exited;
 	StringName size_flags_changed;
 	StringName minimum_size_changed;
@@ -106,7 +108,7 @@ public:
 	StringName _get_gizmo_geometry;
 	StringName _can_gizmo_scale;
 
-	StringName _fixed_process;
+	StringName _physics_process;
 	StringName _process;
 	StringName _enter_world;
 	StringName _exit_world;
@@ -172,8 +174,6 @@ public:
 	StringName area_exited;
 
 	StringName _get_minimum_size;
-
-	StringName play_play;
 
 	StringName _im_update;
 	StringName _queue_update;

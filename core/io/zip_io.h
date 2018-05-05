@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef ZIP_IO_H
 #define ZIP_IO_H
 
@@ -72,7 +73,7 @@ static uLong zipio_write(voidpf opaque, voidpf stream, const void *buf, uLong si
 static long zipio_tell(voidpf opaque, voidpf stream) {
 
 	FileAccess *f = *(FileAccess **)opaque;
-	return f->get_pos();
+	return f->get_position();
 };
 
 static long zipio_seek(voidpf opaque, voidpf stream, uLong offset, int origin) {
@@ -83,7 +84,7 @@ static long zipio_seek(voidpf opaque, voidpf stream, uLong offset, int origin) {
 	switch (origin) {
 
 		case ZLIB_FILEFUNC_SEEK_CUR:
-			pos = f->get_pos() + offset;
+			pos = f->get_position() + offset;
 			break;
 		case ZLIB_FILEFUNC_SEEK_END:
 			pos = f->get_len() + offset;

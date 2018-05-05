@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,9 +27,11 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifdef WINDOWS_ENABLED
 
 #include "file_access_windows.h"
+#include "os/os.h"
 #include "shlwapi.h"
 #include <windows.h>
 
@@ -53,9 +55,10 @@ void FileAccessWindows::check_errors() const {
 	}
 }
 
-Error FileAccessWindows::_open(const String &p_filename, int p_mode_flags) {
+Error FileAccessWindows::_open(const String &p_path, int p_mode_flags) {
 
-	String filename = fix_path(p_filename);
+	path_src = p_path;
+	path = fix_path(p_path);
 	if (f)
 		close();
 
@@ -76,19 +79,40 @@ Error FileAccessWindows::_open(const String &p_filename, int p_mode_flags) {
 	   backend supports utf8 encoding */
 
 	struct _stat st;
-	if (_wstat(filename.c_str(), &st) == 0) {
+	if (_wstat(path.c_str(), &st) == 0) {
 
 		if (!S_ISREG(st.st_mode))
 			return ERR_FILE_CANT_OPEN;
 	};
 
+#ifdef TOOLS_ENABLED
+	// Windows is case insensitive, but all other platforms are sensitive to it
+	// To ease cross-platform development, we issue a warning if users try to access
+	// a file using the wrong case (which *works* on Windows, but won't on other
+	// platforms).
+	if (p_mode_flags == READ) {
+		WIN32_FIND_DATAW d = { 0 };
+		HANDLE f = FindFirstFileW(path.c_str(), &d);
+		if (f) {
+			String fname = d.cFileName;
+			if (fname != String()) {
+
+				String base_file = path.get_file();
+				if (base_file != fname && base_file.findn(fname) == 0) {
+					WARN_PRINTS("Case mismatch opening requested file '" + base_file + "', stored as '" + fname + "' in the filesystem. This file will not open when exported to other case-sensitive platforms.");
+				}
+			}
+			FindClose(f);
+		}
+	}
+#endif
+
 	if (is_backup_save_enabled() && p_mode_flags & WRITE && !(p_mode_flags & READ)) {
-		save_path = filename;
-		filename = filename + ".tmp";
-		//print_line("saving instead to "+path);
+		save_path = path;
+		path = path + ".tmp";
 	}
 
-	f = _wfopen(filename.c_str(), mode_string);
+	f = _wfopen(path.c_str(), mode_string);
 
 	if (f == NULL) {
 		last_error = ERR_FILE_CANT_OPEN;
@@ -110,35 +134,62 @@ void FileAccessWindows::close() {
 	if (save_path != "") {
 
 		//unlink(save_path.utf8().get_data());
-		//print_line("renaming..");
+		//print_line("renaming...");
 		//_wunlink(save_path.c_str()); //unlink if exists
 		//int rename_error = _wrename((save_path+".tmp").c_str(),save_path.c_str());
 
-		bool rename_error;
+		bool rename_error = true;
+		int attempts = 4;
+		while (rename_error && attempts) {
+		// This workaround of trying multiple times is added to deal with paranoid Windows
+		// antiviruses that love reading just written files even if they are not executable, thus
+		// locking the file and preventing renaming from happening.
 
 #ifdef UWP_ENABLED
-		// UWP has no PathFileExists, so we check attributes instead
-		DWORD fileAttr;
+			// UWP has no PathFileExists, so we check attributes instead
+			DWORD fileAttr;
 
-		fileAttr = GetFileAttributesW(save_path.c_str());
-		if (INVALID_FILE_ATTRIBUTES == fileAttr) {
+			fileAttr = GetFileAttributesW(save_path.c_str());
+			if (INVALID_FILE_ATTRIBUTES == fileAttr) {
 #else
-		if (!PathFileExistsW(save_path.c_str())) {
+			if (!PathFileExistsW(save_path.c_str())) {
 #endif
-			//creating new file
-			rename_error = _wrename((save_path + ".tmp").c_str(), save_path.c_str()) != 0;
-		} else {
-			//atomic replace for existing file
-			rename_error = !ReplaceFileW(save_path.c_str(), (save_path + ".tmp").c_str(), NULL, 2 | 4, NULL, NULL);
+				//creating new file
+				rename_error = _wrename((save_path + ".tmp").c_str(), save_path.c_str()) != 0;
+			} else {
+				//atomic replace for existing file
+				rename_error = !ReplaceFileW(save_path.c_str(), (save_path + ".tmp").c_str(), NULL, 2 | 4, NULL, NULL);
+			}
+			if (rename_error) {
+				attempts--;
+				OS::get_singleton()->delay_usec(100000); // wait 100msec and try again
+			}
 		}
-		if (rename_error && close_fail_notify) {
-			close_fail_notify(save_path);
+
+		if (rename_error) {
+			if (close_fail_notify) {
+				close_fail_notify(save_path);
+			}
+
+			ERR_EXPLAIN("Safe save failed. This may be a permissions problem, but also may happen because you are running a paranoid antivirus. If this is the case, please switch to Windows Defender or disable the 'safe save' option in editor settings. This makes it work, but increases the risk of file corruption in a crash.");
 		}
 
 		save_path = "";
+
 		ERR_FAIL_COND(rename_error);
 	}
 }
+
+String FileAccessWindows::get_path() const {
+
+	return path_src;
+}
+
+String FileAccessWindows::get_path_absolute() const {
+
+	return path;
+}
+
 bool FileAccessWindows::is_open() const {
 
 	return (f != NULL);
@@ -156,10 +207,11 @@ void FileAccessWindows::seek_end(int64_t p_position) {
 	if (fseek(f, p_position, SEEK_END))
 		check_errors();
 }
-size_t FileAccessWindows::get_pos() const {
+size_t FileAccessWindows::get_position() const {
 
 	size_t aux_position = 0;
-	if (!(aux_position = ftell(f))) {
+	aux_position = ftell(f);
+	if (!aux_position) {
 		check_errors();
 	};
 	return aux_position;
@@ -168,9 +220,9 @@ size_t FileAccessWindows::get_len() const {
 
 	ERR_FAIL_COND_V(!f, 0);
 
-	size_t pos = get_pos();
+	size_t pos = get_position();
 	fseek(f, 0, SEEK_END);
-	int size = get_pos();
+	int size = get_position();
 	fseek(f, pos, SEEK_SET);
 
 	return size;
@@ -188,6 +240,7 @@ uint8_t FileAccessWindows::get_8() const {
 	uint8_t b;
 	if (fread(&b, 1, 1, f) == 0) {
 		check_errors();
+		b = '\0';
 	};
 
 	return b;
@@ -206,10 +259,21 @@ Error FileAccessWindows::get_error() const {
 	return last_error;
 }
 
+void FileAccessWindows::flush() {
+
+	ERR_FAIL_COND(!f);
+	fflush(f);
+}
+
 void FileAccessWindows::store_8(uint8_t p_dest) {
 
 	ERR_FAIL_COND(!f);
 	fwrite(&p_dest, 1, 1, f);
+}
+
+void FileAccessWindows::store_buffer(const uint8_t *p_src, int p_length) {
+	ERR_FAIL_COND(!f);
+	ERR_FAIL_COND(fwrite(p_src, 1, p_length, f) != p_length);
 }
 
 bool FileAccessWindows::file_exists(const String &p_name) {

@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "body_pair_2d_sw.h"
 #include "collision_solver_2d_sw.h"
 #include "space_2d_sw.h"
@@ -61,6 +62,7 @@ void BodyPair2DSW::_contact_added_callback(const Vector2 &p_point_A, const Vecto
 	contact.local_B = local_B;
 	contact.reused = true;
 	contact.normal = (p_point_A - p_point_B).normalized();
+	contact.mass_normal = 0; // will be computed in setup()
 
 	// attempt to determine if the contact will be reused
 
@@ -225,6 +227,11 @@ bool BodyPair2DSW::setup(real_t p_step) {
 		return false;
 	}
 
+	if (A->is_shape_set_as_disabled(shape_A) || B->is_shape_set_as_disabled(shape_B)) {
+		collided = false;
+		return false;
+	}
+
 	//use local A coordinates to avoid numerical issues on collision detection
 	offset_B = B->get_transform().get_origin() - A->get_transform().get_origin();
 
@@ -280,8 +287,8 @@ bool BodyPair2DSW::setup(real_t p_step) {
 	//if (!prev_collided) {
 	{
 
-		if (A->is_using_one_way_collision()) {
-			Vector2 direction = A->get_one_way_collision_direction();
+		if (A->is_shape_set_as_one_way_collision(shape_A)) {
+			Vector2 direction = xform_A.get_axis(1).normalized();
 			bool valid = false;
 			if (B->get_linear_velocity().dot(direction) >= 0) {
 				for (int i = 0; i < contact_count; i++) {
@@ -303,8 +310,8 @@ bool BodyPair2DSW::setup(real_t p_step) {
 			}
 		}
 
-		if (B->is_using_one_way_collision()) {
-			Vector2 direction = B->get_one_way_collision_direction();
+		if (B->is_shape_set_as_one_way_collision(shape_B)) {
+			Vector2 direction = xform_B.get_axis(1).normalized();
 			bool valid = false;
 			if (A->get_linear_velocity().dot(direction) >= 0) {
 				for (int i = 0; i < contact_count; i++) {
@@ -390,7 +397,7 @@ bool BodyPair2DSW::setup(real_t p_step) {
 			}
 		}
 
-		if (A->is_shape_set_as_trigger(shape_A) || B->is_shape_set_as_trigger(shape_B) || (A->get_mode() <= Physics2DServer::BODY_MODE_KINEMATIC && B->get_mode() <= Physics2DServer::BODY_MODE_KINEMATIC)) {
+		if ((A->get_mode() <= Physics2DServer::BODY_MODE_KINEMATIC && B->get_mode() <= Physics2DServer::BODY_MODE_KINEMATIC)) {
 			c.active = false;
 			collided = false;
 			continue;
@@ -412,7 +419,7 @@ bool BodyPair2DSW::setup(real_t p_step) {
 
 		c.bias = -bias * inv_dt * MIN(0.0f, -depth + max_penetration);
 		c.depth = depth;
-//c.acc_bias_impulse=0;
+		//c.acc_bias_impulse=0;
 
 #ifdef ACCUMULATE_IMPULSES
 		{
@@ -495,8 +502,8 @@ void BodyPair2DSW::solve(real_t p_step) {
 	}
 }
 
-BodyPair2DSW::BodyPair2DSW(Body2DSW *p_A, int p_shape_A, Body2DSW *p_B, int p_shape_B)
-	: Constraint2DSW(_arr, 2) {
+BodyPair2DSW::BodyPair2DSW(Body2DSW *p_A, int p_shape_A, Body2DSW *p_B, int p_shape_B) :
+		Constraint2DSW(_arr, 2) {
 
 	A = p_A;
 	B = p_B;

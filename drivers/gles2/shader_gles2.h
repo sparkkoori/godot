@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -30,7 +30,7 @@
 #ifndef SHADER_GLES2_H
 #define SHADER_GLES2_H
 
-#ifdef GLES2_ENABLED
+#include <stdio.h>
 
 #include "platform_config.h"
 #ifndef GLES2_INCLUDE_H
@@ -43,10 +43,6 @@
 #include "hash_map.h"
 #include "map.h"
 #include "variant.h"
-
-/**
-	@author Juan Linietsky <reduzio@gmail.com>
-*/
 
 class ShaderGLES2 {
 protected:
@@ -99,8 +95,9 @@ private:
 		String fragment_globals;
 		String light;
 		uint32_t version;
+		Vector<StringName> texture_uniforms;
 		Vector<StringName> custom_uniforms;
-		Vector<const char *> custom_defines;
+		Vector<CharString> custom_defines;
 	};
 
 	struct Version {
@@ -109,6 +106,7 @@ private:
 		GLuint vert_id;
 		GLuint frag_id;
 		GLint *uniform_location;
+		Vector<GLint> texture_uniform_locations;
 		Vector<GLint> custom_uniform_locations;
 		uint32_t code_version;
 		bool ok;
@@ -134,7 +132,7 @@ private:
 
 	struct VersionKeyHash {
 
-		static _FORCE_INLINE_ uint32_t hash(const VersionKey &p_key) { return HashMapHasherDefault::hash(p_key.key); };
+		static _FORCE_INLINE_ uint32_t hash(const VersionKey &p_key) { return HashMapHasherDefault::hash(p_key.key); }
 	};
 
 	//this should use a way more cachefriendly version..
@@ -163,9 +161,13 @@ private:
 	CharString vertex_code1;
 	CharString vertex_code2;
 
+	Vector<CharString> custom_defines;
+
 	Version *get_current_version();
 
 	static ShaderGLES2 *active;
+
+	int max_image_units;
 
 	_FORCE_INLINE_ void _set_uniform_variant(GLint p_uniform, const Variant &p_value) {
 
@@ -174,11 +176,11 @@ private:
 		switch (p_value.get_type()) {
 
 			case Variant::BOOL:
-			case Variant::INT: /* {
+			case Variant::INT: {
 
-			int val=p_value;
-			glUniform1i( p_uniform, val );
-		} break; */
+				int val = p_value;
+				glUniform1i(p_uniform, val);
+			} break;
 			case Variant::REAL: {
 
 				real_t val = p_value;
@@ -210,7 +212,7 @@ private:
 				glUniform4f(p_uniform, val.x, val.y, val.z, val.w);
 			} break;
 
-			case Variant::MATRIX32: {
+			case Variant::TRANSFORM2D: {
 
 				Transform2D tr = p_value;
 				GLfloat matrix[16] = { /* build a 16x16 matrix */
@@ -235,7 +237,7 @@ private:
 				glUniformMatrix4fv(p_uniform, 1, false, matrix);
 
 			} break;
-			case Variant::MATRIX3:
+			case Variant::BASIS:
 			case Variant::TRANSFORM: {
 
 				Transform tr = p_value;
@@ -271,7 +273,18 @@ protected:
 	_FORCE_INLINE_ int _get_uniform(int p_which) const;
 	_FORCE_INLINE_ void _set_conditional(int p_which, bool p_value);
 
-	void setup(const char **p_conditional_defines, int p_conditional_count, const char **p_uniform_names, int p_uniform_count, const AttributePair *p_attribute_pairs, int p_attribute_count, const TexUnitPair *p_texunit_pairs, int p_texunit_pair_count, const char *p_vertex_code, const char *p_fragment_code, int p_vertex_code_start, int p_fragment_code_start);
+	void setup(const char **p_conditional_defines,
+			int p_conditional_count,
+			const char **p_uniform_names,
+			int p_uniform_count,
+			const AttributePair *p_attribute_pairs,
+			int p_attribute_count,
+			const TexUnitPair *p_texunit_pairs,
+			int p_texunit_pair_count,
+			const char *p_vertex_code,
+			const char *p_fragment_code,
+			int p_vertex_code_start,
+			int p_fragment_code_start);
 
 	ShaderGLES2();
 
@@ -281,9 +294,9 @@ public:
 	};
 
 	GLint get_uniform_location(const String &p_name) const;
-	GLint get_uniform_location(int p_uniform) const;
+	GLint get_uniform_location(int p_index) const;
 
-	static _FORCE_INLINE_ ShaderGLES2 *get_active() { return active; };
+	static _FORCE_INLINE_ ShaderGLES2 *get_active() { return active; }
 	bool bind();
 	void unbind();
 	void bind_uniforms();
@@ -293,9 +306,18 @@ public:
 	void clear_caches();
 
 	uint32_t create_custom_shader();
-	void set_custom_shader_code(uint32_t p_id, const String &p_vertex, const String &p_vertex_globals, const String &p_fragment, const String &p_p_light, const String &p_fragment_globals, const Vector<StringName> &p_uniforms, const Vector<const char *> &p_custom_defines);
-	void set_custom_shader(uint32_t p_id);
-	void free_custom_shader(uint32_t p_id);
+	void set_custom_shader_code(uint32_t p_code_id,
+			const String &p_vertex,
+			const String &p_vertex_globals,
+			const String &p_fragment,
+			const String &p_light,
+			const String &p_fragment_globals,
+			const Vector<StringName> &p_uniforms,
+			const Vector<StringName> &p_texture_uniforms,
+			const Vector<CharString> &p_custom_defines);
+
+	void set_custom_shader(uint32_t p_code_id);
+	void free_custom_shader(uint32_t p_code_id);
 
 	void set_uniform_default(int p_idx, const Variant &p_value) {
 
@@ -307,7 +329,7 @@ public:
 			uniform_defaults[p_idx] = p_value;
 		}
 		uniforms_dirty = true;
-	};
+	}
 
 	uint32_t get_version() const { return new_conditional_version.version; }
 
@@ -315,24 +337,30 @@ public:
 
 		uniform_cameras[p_idx] = p_mat;
 		uniforms_dirty = true;
-	};
-
-	_FORCE_INLINE_ void set_custom_uniform(int p_idx, const Variant &p_value) {
-
-		ERR_FAIL_COND(!version);
-		ERR_FAIL_INDEX(p_idx, version->custom_uniform_locations.size());
-		_set_uniform_variant(version->custom_uniform_locations[p_idx], p_value);
 	}
 
-	_FORCE_INLINE_ GLint get_custom_uniform_location(int p_idx) {
+	_FORCE_INLINE_ void set_texture_uniform(int p_idx, const Variant &p_value) {
+
+		ERR_FAIL_COND(!version);
+		ERR_FAIL_INDEX(p_idx, version->texture_uniform_locations.size());
+		_set_uniform_variant(version->texture_uniform_locations[p_idx], p_value);
+	}
+
+	_FORCE_INLINE_ GLint get_texture_uniform_location(int p_idx) {
 
 		ERR_FAIL_COND_V(!version, -1);
-		ERR_FAIL_INDEX_V(p_idx, version->custom_uniform_locations.size(), -1);
-		return version->custom_uniform_locations[p_idx];
+		ERR_FAIL_INDEX_V(p_idx, version->texture_uniform_locations.size(), -1);
+		return version->texture_uniform_locations[p_idx];
 	}
 
 	virtual void init() = 0;
 	void finish();
+
+	void set_base_material_tex_index(int p_idx);
+
+	void add_custom_define(const String &p_define) {
+		custom_defines.push_back(p_define.utf8());
+	}
 
 	virtual ~ShaderGLES2();
 };
@@ -355,5 +383,4 @@ void ShaderGLES2::_set_conditional(int p_which, bool p_value) {
 		new_conditional_version.version &= ~(1 << p_which);
 }
 
-#endif
 #endif

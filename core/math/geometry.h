@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef GEOMETRY_H
 #define GEOMETRY_H
 
@@ -105,7 +106,7 @@ public:
 	}
 
 	static void get_closest_points_between_segments(const Vector3 &p1, const Vector3 &p2, const Vector3 &q1, const Vector3 &q2, Vector3 &c1, Vector3 &c2) {
-#if 1
+
 //do the function 'd' as defined by pb. I think is is dot product of some sort
 #define d_of(m, n, o, p) ((m.x - n.x) * (o.x - p.x) + (m.y - n.y) * (o.y - p.y) + (m.z - n.z) * (o.z - p.z))
 
@@ -120,33 +121,6 @@ public:
 		if (mub > 1) mub = 1;
 		c1 = p1.linear_interpolate(p2, mua);
 		c2 = q1.linear_interpolate(q2, mub);
-#else
-		//this is broken do not use
-		Vector3 u = p2 - p1;
-		Vector3 v = q2 - q1;
-		Vector3 w = p1 - q1;
-		float a = u.dot(u);
-		float b = u.dot(v);
-		float c = v.dot(v); // always >= 0
-		float d = u.dot(w);
-		float e = v.dot(w);
-		float D = a * c - b * b; // always >= 0
-		float sc, tc;
-
-		// compute the line parameters of the two closest points
-		if (D < CMP_EPSILON) { // the lines are almost parallel
-			sc = 0.0;
-			tc = (b > c ? d / b : e / c); // use the largest denominator
-		} else {
-			sc = (b * e - c * d) / D;
-			tc = (a * e - b * d) / D;
-		}
-
-		c1 = w + sc * u;
-		c2 = w + tc * v;
-// get the difference of the two closest points
-//Vector   dP = w + (sc * u) - (tc * v);  // =  L1(sc) - L2(tc)
-#endif
 	}
 
 	static real_t get_closest_distance_between_segments(const Vector3 &p_from_a, const Vector3 &p_to_a, const Vector3 &p_from_b, const Vector3 &p_to_b) {
@@ -528,17 +502,19 @@ public:
 	}
 
 	static bool is_point_in_triangle(const Vector2 &s, const Vector2 &a, const Vector2 &b, const Vector2 &c) {
-		int as_x = s.x - a.x;
-		int as_y = s.y - a.y;
+		Vector2 an = a - s;
+		Vector2 bn = b - s;
+		Vector2 cn = c - s;
 
-		bool s_ab = (b.x - a.x) * as_y - (b.y - a.y) * as_x > 0;
+		bool orientation = an.cross(bn) > 0;
 
-		if (((c.x - a.x) * as_y - (c.y - a.y) * as_x > 0) == s_ab) return false;
+		if ((bn.cross(cn) > 0) != orientation) return false;
 
-		if (((c.x - b.x) * (s.y - b.y) - (c.y - b.y) * (s.x - b.x) > 0) != s_ab) return false;
-
-		return true;
+		return (cn.cross(an) > 0) == orientation;
 	}
+
+	static bool is_point_in_polygon(const Vector2 &p_point, const Vector<Vector2> &p_polygon);
+
 	static Vector2 get_closest_point_to_segment_uncapped_2d(const Vector2 &p_point, const Vector2 *p_segment) {
 
 		Vector2 p = p_point - p_segment[0];

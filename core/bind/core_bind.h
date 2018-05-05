@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,15 +27,17 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef CORE_BIND_H
 #define CORE_BIND_H
 
 #include "image.h"
+#include "io/compression.h"
 #include "io/resource_loader.h"
 #include "io/resource_saver.h"
 #include "os/dir_access.h"
 #include "os/file_access.h"
-#include "os/power.h"
+#include "os/os.h"
 #include "os/semaphore.h"
 #include "os/thread.h"
 
@@ -84,6 +86,8 @@ public:
 	_ResourceSaver();
 };
 
+VARIANT_ENUM_CAST(_ResourceSaver::SaverFlags);
+
 class MainLoop;
 
 class _OS : public Object {
@@ -94,6 +98,14 @@ protected:
 	static _OS *singleton;
 
 public:
+	enum PowerState {
+		POWERSTATE_UNKNOWN, /**< cannot determine power status */
+		POWERSTATE_ON_BATTERY, /**< Not plugged in, running on the battery */
+		POWERSTATE_NO_BATTERY, /**< Plugged in, no battery available */
+		POWERSTATE_CHARGING, /**< Plugged in, charging battery */
+		POWERSTATE_CHARGED /**< Plugged in, battery charged */
+	};
+
 	enum Weekday {
 		DAY_SUNDAY,
 		DAY_MONDAY,
@@ -134,15 +146,23 @@ public:
 	bool is_video_mode_resizable(int p_screen = 0) const;
 	Array get_fullscreen_mode_list(int p_screen = 0) const;
 
+	virtual int get_video_driver_count() const;
+	virtual String get_video_driver_name(int p_driver) const;
+
+	virtual int get_audio_driver_count() const;
+	virtual String get_audio_driver_name(int p_driver) const;
+
 	virtual int get_screen_count() const;
 	virtual int get_current_screen() const;
 	virtual void set_current_screen(int p_screen);
-	virtual Point2 get_screen_position(int p_screen = 0) const;
-	virtual Size2 get_screen_size(int p_screen = 0) const;
-	virtual int get_screen_dpi(int p_screen = 0) const;
+	virtual Point2 get_screen_position(int p_screen = -1) const;
+	virtual Size2 get_screen_size(int p_screen = -1) const;
+	virtual int get_screen_dpi(int p_screen = -1) const;
 	virtual Point2 get_window_position() const;
 	virtual void set_window_position(const Point2 &p_position);
 	virtual Size2 get_window_size() const;
+	virtual Size2 get_real_window_size() const;
+	virtual Rect2 get_window_safe_area() const;
 	virtual void set_window_size(const Size2 &p_size);
 	virtual void set_window_fullscreen(bool p_enabled);
 	virtual bool is_window_fullscreen() const;
@@ -152,10 +172,15 @@ public:
 	virtual bool is_window_minimized() const;
 	virtual void set_window_maximized(bool p_enabled);
 	virtual bool is_window_maximized() const;
+	virtual void set_window_always_on_top(bool p_enabled);
+	virtual bool is_window_always_on_top() const;
 	virtual void request_attention();
+	virtual void center_window();
 
 	virtual void set_borderless_window(bool p_borderless);
 	virtual bool get_borderless_window() const;
+
+	virtual void set_ime_position(const Point2 &p_pos);
 
 	Error native_video_play(String p_path, float p_volume, String p_audio_track, String p_subtitle_track);
 	bool native_video_is_playing();
@@ -172,7 +197,7 @@ public:
 	Error kill(int p_pid);
 	Error shell_open(String p_uri);
 
-	int get_process_ID() const;
+	int get_process_id() const;
 
 	bool has_environment(const String &p_var) const;
 	String get_environment(const String &p_var) const;
@@ -191,6 +216,7 @@ public:
 	bool has_virtual_keyboard() const;
 	void show_virtual_keyboard(const String &p_existing_text = "");
 	void hide_virtual_keyboard();
+	int get_virtual_keyboard_height();
 
 	void print_resources_in_use(bool p_short = false);
 	void print_all_resources(const String &p_to_file);
@@ -201,7 +227,7 @@ public:
 
 	bool is_debug_build() const;
 
-	String get_unique_ID() const;
+	String get_unique_id() const;
 
 	String get_scancode_string(uint32_t p_code) const;
 	bool is_scancode_unicode(uint32_t p_unicode) const;
@@ -253,6 +279,8 @@ public:
 
 	bool can_draw() const;
 
+	bool is_userfs_persistent() const;
+
 	bool is_stdout_verbose() const;
 
 	int get_processor_count() const;
@@ -281,7 +309,7 @@ public:
 
 	String get_system_dir(SystemDir p_dir) const;
 
-	String get_data_dir() const;
+	String get_user_data_dir() const;
 
 	void alert(const String &p_alert, const String &p_title = "ALERT!");
 
@@ -302,11 +330,16 @@ public:
 	int get_power_seconds_left();
 	int get_power_percent_left();
 
+	bool has_feature(const String &p_feature) const;
+
 	static _OS *get_singleton() { return singleton; }
 
 	_OS();
 };
 
+VARIANT_ENUM_CAST(_OS::PowerState);
+VARIANT_ENUM_CAST(_OS::Weekday);
+VARIANT_ENUM_CAST(_OS::Month);
 VARIANT_ENUM_CAST(_OS::SystemDir);
 VARIANT_ENUM_CAST(_OS::ScreenOrientation);
 
@@ -342,6 +375,8 @@ public:
 	int get_uv84_normal_bit(const Vector3 &p_vector);
 
 	Vector<int> triangulate_polygon(const Vector<Vector2> &p_polygon);
+	Vector<Point2> convex_hull_2d(const Vector<Point2> &p_points);
+	Vector<Vector3> clip_polygon(const Vector<Vector3> &p_points, const Plane &p_plane);
 
 	Dictionary make_atlas(const Vector<Size2> &p_rects);
 
@@ -366,16 +401,27 @@ public:
 		WRITE_READ = 7,
 	};
 
+	enum CompressionMode {
+		COMPRESSION_FASTLZ = Compression::MODE_FASTLZ,
+		COMPRESSION_DEFLATE = Compression::MODE_DEFLATE,
+		COMPRESSION_ZSTD = Compression::MODE_ZSTD,
+		COMPRESSION_GZIP = Compression::MODE_GZIP
+	};
+
 	Error open_encrypted(const String &p_path, int p_mode_flags, const Vector<uint8_t> &p_key);
 	Error open_encrypted_pass(const String &p_path, int p_mode_flags, const String &p_pass);
+	Error open_compressed(const String &p_path, int p_mode_flags, int p_compress_mode = 0);
 
 	Error open(const String &p_path, int p_mode_flags); ///< open a file
 	void close(); ///< close a file
 	bool is_open() const; ///< true when file is open
 
+	String get_path() const; /// returns the path for the current open file
+	String get_path_absolute() const; /// returns the absolute path for the current open file
+
 	void seek(int64_t p_position); ///< seek to a given position
 	void seek_end(int64_t p_position = 0); ///< seek from the end of file
-	int64_t get_pos() const; ///< get position in the file
+	int64_t get_position() const; ///< get position in the file
 	int64_t get_len() const; ///< get size of the file
 
 	bool eof_reached() const; ///< reading passed EOF
@@ -436,6 +482,9 @@ public:
 	virtual ~_File();
 };
 
+VARIANT_ENUM_CAST(_File::ModeFlags);
+VARIANT_ENUM_CAST(_File::CompressionMode);
+
 class _Directory : public Reference {
 
 	GDCLASS(_Directory, Reference);
@@ -447,7 +496,7 @@ protected:
 public:
 	Error open(const String &p_path);
 
-	Error list_dir_begin(bool p_skip_internal = false, bool p_skip_hidden = false); ///< This starts dir listing
+	Error list_dir_begin(bool p_skip_navigational = false, bool p_skip_hidden = false); ///< This starts dir listing
 	String get_next();
 	bool current_is_dir() const;
 
@@ -567,6 +616,8 @@ public:
 	~_Thread();
 };
 
+VARIANT_ENUM_CAST(_Thread::Priority);
+
 class _ClassDB : public Object {
 
 	GDCLASS(_ClassDB, Object)
@@ -619,7 +670,7 @@ public:
 	int get_iterations_per_second() const;
 
 	void set_target_fps(int p_fps);
-	float get_target_fps() const;
+	int get_target_fps() const;
 
 	float get_frames_per_second() const;
 
@@ -628,13 +679,65 @@ public:
 	void set_time_scale(float p_scale);
 	float get_time_scale();
 
-	String get_custom_level() const;
-
 	MainLoop *get_main_loop() const;
 
 	Dictionary get_version_info() const;
 
+	bool is_in_physics_frame() const;
+
+	bool has_singleton(const String &p_name) const;
+	Object *get_singleton_object(const String &p_name) const;
+
+	void set_editor_hint(bool p_enabled);
+	bool is_editor_hint() const;
+
 	_Engine();
+};
+
+class _JSON;
+
+class JSONParseResult : public Reference {
+	GDCLASS(JSONParseResult, Reference)
+
+	friend class _JSON;
+
+	Error error;
+	String error_string;
+	int error_line;
+
+	Variant result;
+
+protected:
+	static void _bind_methods();
+
+public:
+	void set_error(Error p_error);
+	Error get_error() const;
+
+	void set_error_string(const String &p_error_string);
+	String get_error_string() const;
+
+	void set_error_line(int p_error_line);
+	int get_error_line() const;
+
+	void set_result(const Variant &p_result);
+	Variant get_result() const;
+};
+
+class _JSON : public Object {
+	GDCLASS(_JSON, Object)
+
+protected:
+	static void _bind_methods();
+	static _JSON *singleton;
+
+public:
+	static _JSON *get_singleton() { return singleton; }
+
+	String print(const Variant &p_value, const String &p_indent = "", bool p_sort_keys = false);
+	Ref<JSONParseResult> parse(const String &p_json);
+
+	_JSON();
 };
 
 #endif // CORE_BIND_H

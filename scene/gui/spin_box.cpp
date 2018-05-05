@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "spin_box.h"
 #include "os/input.h"
 
@@ -72,7 +73,7 @@ void SpinBox::_range_click_timeout() {
 
 	if (!drag.enabled && Input::get_singleton()->is_mouse_button_pressed(BUTTON_LEFT)) {
 
-		bool up = get_local_mouse_pos().y < (get_size().height / 2);
+		bool up = get_local_mouse_position().y < (get_size().height / 2);
 		set_value(get_value() + (up ? get_step() : -get_step()));
 
 		if (range_click_timer->is_one_shot()) {
@@ -184,17 +185,22 @@ void SpinBox::_line_edit_focus_exit() {
 	_text_entered(line_edit->get_text());
 }
 
+inline void SpinBox::_adjust_width_for_icon(const Ref<Texture> icon) {
+
+	int w = icon->get_width();
+	if (w != last_w) {
+		line_edit->set_margin(MARGIN_RIGHT, -w);
+		last_w = w;
+	}
+}
+
 void SpinBox::_notification(int p_what) {
 
 	if (p_what == NOTIFICATION_DRAW) {
 
 		Ref<Texture> updown = get_icon("updown");
 
-		int w = updown->get_width();
-		if (w != last_w) {
-			line_edit->set_margin(MARGIN_RIGHT, w);
-			last_w = w;
-		}
+		_adjust_width_for_icon(updown);
 
 		RID ci = get_canvas_item();
 		Size2i size = get_size();
@@ -206,6 +212,7 @@ void SpinBox::_notification(int p_what) {
 		//_value_changed(0);
 	} else if (p_what == NOTIFICATION_ENTER_TREE) {
 
+		_adjust_width_for_icon(get_icon("updown"));
 		_value_changed(0);
 	}
 }
@@ -268,7 +275,7 @@ SpinBox::SpinBox() {
 	line_edit = memnew(LineEdit);
 	add_child(line_edit);
 
-	line_edit->set_area_as_parent_rect();
+	line_edit->set_anchors_and_margins_preset(Control::PRESET_WIDE);
 	//connect("value_changed",this,"_value_changed");
 	line_edit->connect("text_entered", this, "_text_entered", Vector<Variant>(), CONNECT_DEFERRED);
 	line_edit->connect("focus_exited", this, "_line_edit_focus_exit", Vector<Variant>(), CONNECT_DEFERRED);

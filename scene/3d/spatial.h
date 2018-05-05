@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,11 +27,12 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef SPATIAL_H
 #define SPATIAL_H
 
 #include "scene/main/node.h"
-#include "scene/main/scene_main_loop.h"
+#include "scene/main/scene_tree.h"
 
 /**
 	@author Juan Linietsky <reduzio@gmail.com>
@@ -47,6 +48,7 @@ public:
 	virtual void clear() = 0;
 	virtual void redraw() = 0;
 	virtual void free() = 0;
+	virtual bool can_draw() const = 0;
 
 	SpatialGizmo();
 };
@@ -98,16 +100,10 @@ class Spatial : public Node {
 #endif
 
 	} data;
-#ifdef TOOLS_ENABLED
 
 	void _update_gizmo();
-#endif
 	void _notify_dirty();
 	void _propagate_transform_changed(Spatial *p_origin);
-
-	// Deprecated, should be removed in a future version.
-	void _set_rotation_deg(const Vector3 &p_euler_deg);
-	Vector3 _get_rotation_deg() const;
 
 	void _propagate_visibility_changed();
 
@@ -135,12 +131,12 @@ public:
 
 	void set_translation(const Vector3 &p_translation);
 	void set_rotation(const Vector3 &p_euler_rad);
-	void set_rotation_in_degrees(const Vector3 &p_euler_deg);
+	void set_rotation_degrees(const Vector3 &p_euler_deg);
 	void set_scale(const Vector3 &p_scale);
 
 	Vector3 get_translation() const;
 	Vector3 get_rotation() const;
-	Vector3 get_rotation_in_degrees() const;
+	Vector3 get_rotation_degrees() const;
 	Vector3 get_scale() const;
 
 	void set_transform(const Transform &p_transform);
@@ -161,17 +157,26 @@ public:
 
 	Transform get_relative_transform(const Node *p_parent) const;
 
-	void rotate(const Vector3 &p_normal, float p_radians);
-	void rotate_x(float p_radians);
-	void rotate_y(float p_radians);
-	void rotate_z(float p_radians);
+	void rotate(const Vector3 &p_axis, float p_angle);
+	void rotate_x(float p_angle);
+	void rotate_y(float p_angle);
+	void rotate_z(float p_angle);
 	void translate(const Vector3 &p_offset);
 	void scale(const Vector3 &p_ratio);
-	void global_rotate(const Vector3 &p_normal, float p_radians);
+
+	void rotate_object_local(const Vector3 &p_axis, float p_angle);
+	void scale_object_local(const Vector3 &p_scale);
+	void translate_object_local(const Vector3 &p_offset);
+
+	void global_rotate(const Vector3 &p_axis, float p_angle);
+	void global_scale(const Vector3 &p_scale);
 	void global_translate(const Vector3 &p_offset);
 
-	void look_at(const Vector3 &p_target, const Vector3 &p_up_normal);
-	void look_at_from_pos(const Vector3 &p_pos, const Vector3 &p_target, const Vector3 &p_up_normal);
+	void look_at(const Vector3 &p_target, const Vector3 &p_up);
+	void look_at_from_position(const Vector3 &p_pos, const Vector3 &p_target, const Vector3 &p_up);
+
+	Vector3 to_local(Vector3 p_global) const;
+	Vector3 to_global(Vector3 p_local) const;
 
 	void set_notify_transform(bool p_enable);
 	bool is_transform_notification_enabled() const;

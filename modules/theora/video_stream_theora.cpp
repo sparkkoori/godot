@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,10 +27,11 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "video_stream_theora.h"
 
-#include "global_config.h"
 #include "os/os.h"
+#include "project_settings.h"
 
 #include "thirdparty/misc/yuv2rgb.h"
 
@@ -83,37 +84,6 @@ void VideoStreamPlaybackTheora::video_write(void) {
 	th_ycbcr_buffer yuv;
 	th_decode_ycbcr_out(td, yuv);
 
-	// FIXME: The way stuff is commented out with `//*/` closing comments
-	// sounds very fishy...
-
-	/*
-	int y_offset, uv_offset;
-	y_offset=(ti.pic_x&~1)+yuv[0].stride*(ti.pic_y&~1);
-
-	{
-		int pixels = size.x * size.y;
-		frame_data.resize(pixels * 4);
-		PoolVector<uint8_t>::Write w = frame_data.write();
-		char* dst = (char*)w.ptr();
-		int p = 0;
-		for (int i=0; i<size.y; i++) {
-
-			char *in_y  = (char *)yuv[0].data+y_offset+yuv[0].stride*i;
-			char *out = dst + (int)size.x * 4 * i;
-			for (int j=0;j<size.x;j++) {
-
-				dst[p++] = in_y[j];
-				dst[p++] = in_y[j];
-				dst[p++] = in_y[j];
-				dst[p++] = 255;
-			};
-		}
-		format = Image::FORMAT_RGBA8;
-	}
-		//*/
-
-	//*
-
 	int pitch = 4;
 	frame_data.resize(size.x * size.y * pitch);
 	{
@@ -141,99 +111,6 @@ void VideoStreamPlaybackTheora::video_write(void) {
 	Ref<Image> img = memnew(Image(size.x, size.y, 0, Image::FORMAT_RGBA8, frame_data)); //zero copy image creation
 
 	texture->set_data(img); //zero copy send to visual server
-
-	/*
-
-	if (px_fmt == TH_PF_444) {
-
-		int pitch = 3;
-		frame_data.resize(size.x * size.y * pitch);
-		PoolVector<uint8_t>::Write w = frame_data.write();
-		char* dst = (char*)w.ptr();
-
-		for(int i=0;i<size.y;i++) {
-
-			char *in_y  = (char *)yuv[0].data+y_offset+yuv[0].stride*i;
-			char *out = dst + (int)size.x * pitch * i;
-			char *in_u  = (char *)yuv[1].data+uv_offset+yuv[1].stride*i;
-			char *in_v  = (char *)yuv[2].data+uv_offset+yuv[2].stride*i;
-			for (int j=0;j<size.x;j++) {
-
-				out[j*3+0] = in_y[j];
-				out[j*3+1] = in_u[j];
-				out[j*3+2] = in_v[j];
-			};
-		}
-
-		format = Image::FORMAT_YUV_444;
-
-	} else {
-
-		int div;
-		if (px_fmt!=TH_PF_422) {
-			div = 2;
-		}
-
-		bool rgba = true;
-		if (rgba) {
-
-			int pitch = 4;
-			frame_data.resize(size.x * size.y * pitch);
-			PoolVector<uint8_t>::Write w = frame_data.write();
-			char* dst = (char*)w.ptr();
-
-			uv_offset=(ti.pic_x/2)+(yuv[1].stride)*(ti.pic_y / div);
-			for(int i=0;i<size.y;i++) {
-				char *in_y  = (char *)yuv[0].data+y_offset+yuv[0].stride*i;
-				char *in_u  = (char *)yuv[1].data+uv_offset+yuv[1].stride*(i/div);
-				char *in_v  = (char *)yuv[2].data+uv_offset+yuv[2].stride*(i/div);
-				uint8_t *out = (uint8_t*)dst + (int)size.x * pitch * i;
-				int ofs = 0;
-				for (int j=0;j<size.x;j++) {
-
-					uint8_t y, u, v;
-					y = in_y[j];
-					u = in_u[j/2];
-					v = in_v[j/2];
-
-					int32_t r = Math::fast_ftoi(1.164 * (y - 16) + 1.596 * (v - 128));
-					int32_t g = Math::fast_ftoi(1.164 * (y - 16) - 0.813 * (v - 128) - 0.391 * (u - 128));
-					int32_t b = Math::fast_ftoi(1.164 * (y - 16) + 2.018 * (u - 128));
-
-					out[ofs++] = CLAMP(r, 0, 255);
-					out[ofs++] = CLAMP(g, 0, 255);
-					out[ofs++] = CLAMP(b, 0, 255);
-					out[ofs++] = 255;
-				}
-			}
-
-			format = Image::FORMAT_RGBA8;
-
-		} else {
-
-			int pitch = 2;
-			frame_data.resize(size.x * size.y * pitch);
-			PoolVector<uint8_t>::Write w = frame_data.write();
-			char* dst = (char*)w.ptr();
-
-			uv_offset=(ti.pic_x/2)+(yuv[1].stride)*(ti.pic_y / div);
-			for(int i=0;i<size.y;i++) {
-				char *in_y  = (char *)yuv[0].data+y_offset+yuv[0].stride*i;
-				char *out = dst + (int)size.x * pitch * i;
-				for (int j=0;j<size.x;j++)
-					out[j*2] = in_y[j];
-				char *in_u  = (char *)yuv[1].data+uv_offset+yuv[1].stride*(i/div);
-				char *in_v  = (char *)yuv[2].data+uv_offset+yuv[2].stride*(i/div);
-				for (int j=0;j<(int)size.x>>1;j++) {
-					out[j*4+1] = in_u[j];
-					out[j*4+3] = in_v[j];
-				}
-			}
-
-			format = Image::FORMAT_YUV_422;
-		};
-	};
-		//*/
 
 	frames_pending = 1;
 }
@@ -384,14 +261,12 @@ void VideoStreamPlaybackTheora::set_file(const String &p_file) {
 		/* look for further theora headers */
 		while (theora_p && (theora_p < 3) && (ret = ogg_stream_packetout(&to, &op))) {
 			if (ret < 0) {
-				fprintf(stderr, "Error parsing Theora stream headers; "
-								"corrupt stream?\n");
+				fprintf(stderr, "Error parsing Theora stream headers; corrupt stream?\n");
 				clear();
 				return;
 			}
 			if (!th_decode_headerin(&ti, &tc, &ts, &op)) {
-				fprintf(stderr, "Error parsing Theora stream headers; "
-								"corrupt stream?\n");
+				fprintf(stderr, "Error parsing Theora stream headers; corrupt stream?\n");
 				clear();
 				return;
 			}
@@ -433,37 +308,27 @@ void VideoStreamPlaybackTheora::set_file(const String &p_file) {
 	/* and now we have it all.  initialize decoders */
 	if (theora_p) {
 		td = th_decode_alloc(&ti, ts);
-		printf("Ogg logical stream %lx is Theora %dx%d %.02f fps",
-				to.serialno, ti.pic_width, ti.pic_height,
-				(double)ti.fps_numerator / ti.fps_denominator);
 		px_fmt = ti.pixel_fmt;
 		switch (ti.pixel_fmt) {
-			case TH_PF_420: printf(" 4:2:0 video\n"); break;
-			case TH_PF_422: printf(" 4:2:2 video\n"); break;
-			case TH_PF_444: printf(" 4:4:4 video\n"); break;
+			case TH_PF_420:
+				//printf(" 4:2:0 video\n");
+				break;
+			case TH_PF_422:
+				//printf(" 4:2:2 video\n");
+				break;
+			case TH_PF_444:
+				//printf(" 4:4:4 video\n");
+				break;
 			case TH_PF_RSVD:
 			default:
 				printf(" video\n  (UNKNOWN Chroma sampling!)\n");
 				break;
 		}
-		if (ti.pic_width != ti.frame_width || ti.pic_height != ti.frame_height)
-			printf("  Frame content is %dx%d with offset (%d,%d).\n",
-					ti.frame_width, ti.frame_height, ti.pic_x, ti.pic_y);
 		th_decode_ctl(td, TH_DECCTL_GET_PPLEVEL_MAX, &pp_level_max,
 				sizeof(pp_level_max));
-		pp_level = pp_level_max;
 		pp_level = 0;
 		th_decode_ctl(td, TH_DECCTL_SET_PPLEVEL, &pp_level, sizeof(pp_level));
 		pp_inc = 0;
-
-		/*{
-		int arg = 0xffff;
-		th_decode_ctl(td,TH_DECCTL_SET_TELEMETRY_MBMODE,&arg,sizeof(arg));
-		th_decode_ctl(td,TH_DECCTL_SET_TELEMETRY_MV,&arg,sizeof(arg));
-		th_decode_ctl(td,TH_DECCTL_SET_TELEMETRY_QI,&arg,sizeof(arg));
-		arg=10;
-		th_decode_ctl(td,TH_DECCTL_SET_TELEMETRY_BITS,&arg,sizeof(arg));
-		}*/
 
 		int w;
 		int h;
@@ -485,10 +350,7 @@ void VideoStreamPlaybackTheora::set_file(const String &p_file) {
 	if (vorbis_p) {
 		vorbis_synthesis_init(&vd, &vi);
 		vorbis_block_init(&vd, &vb);
-		fprintf(stderr, "Ogg logical stream %lx is Vorbis %d channel %ld Hz audio.\n",
-				vo.serialno, vi.channels, vi.rate);
 		//_setup(vi.channels, vi.rate);
-
 	} else {
 		/* tear down the partial vorbis setup */
 		vorbis_info_clear(&vi);
@@ -503,8 +365,6 @@ void VideoStreamPlaybackTheora::set_file(const String &p_file) {
 
 float VideoStreamPlaybackTheora::get_time() const {
 
-	//print_line("total: "+itos(get_total())+" todo: "+itos(get_todo()));
-	//return MAX(0,time-((get_total())/(float)vi.rate));
 	return time - AudioServer::get_singleton()->get_output_delay() - delay_compensation; //-((get_total())/(float)vi.rate);
 };
 
@@ -527,8 +387,6 @@ void VideoStreamPlaybackTheora::update(float p_delta) {
 	thread_sem->post();
 #endif
 
-	//double ctime =AudioServer::get_singleton()->get_mix_time();
-
 	//print_line("play "+rtos(p_delta));
 	time += p_delta;
 
@@ -544,19 +402,19 @@ void VideoStreamPlaybackTheora::update(float p_delta) {
 
 		ogg_packet op;
 		bool no_theora = false;
+		bool buffer_full = false;
 
-		while (vorbis_p) {
+		while (vorbis_p && !audio_done && !buffer_full) {
 			int ret;
 			float **pcm;
 
-			bool buffer_full = false;
-
 			/* if there's pending, decoded audio, grab it */
-			if ((ret = vorbis_synthesis_pcmout(&vd, &pcm)) > 0) {
+			ret = vorbis_synthesis_pcmout(&vd, &pcm);
+			if (ret > 0) {
 
 				const int AUXBUF_LEN = 4096;
 				int to_read = ret;
-				int16_t aux_buffer[AUXBUF_LEN];
+				float aux_buffer[AUXBUF_LEN];
 
 				while (to_read) {
 
@@ -566,11 +424,7 @@ void VideoStreamPlaybackTheora::update(float p_delta) {
 
 					for (int j = 0; j < m; j++) {
 						for (int i = 0; i < vi.channels; i++) {
-
-							int val = Math::fast_ftoi(pcm[i][j] * 32767.f);
-							if (val > 32767) val = 32767;
-							if (val < -32768) val = -32768;
-							aux_buffer[count++] = val;
+							aux_buffer[count++] = pcm[i][j];
 						}
 					}
 
@@ -664,27 +518,15 @@ void VideoStreamPlaybackTheora::update(float p_delta) {
 			}
 		}
 
-//print_line("no theora: "+itos(no_theora)+" theora eos: "+itos(theora_eos)+" frame done "+itos(frame_done));
-
 #ifdef THEORA_USE_THREAD_STREAMING
 		if (file && thread_eof && no_theora && theora_eos && ring_buffer.data_left() == 0) {
 #else
 		if (file && /*!videobuf_ready && */ no_theora && theora_eos) {
 #endif
-			printf("video done, stopping\n");
+			//printf("video done, stopping\n");
 			stop();
 			return;
 		};
-#if 0
-		if (!videobuf_ready || audio_todo > 0){
-			/* no data yet for somebody.  Grab another page */
-
-			buffer_data();
-			while(ogg_sync_pageout(&oy,&og)>0){
-				queue_page(&og);
-			}
-		}
-#else
 
 		if (!frame_done || !audio_done) {
 			//what's the point of waiting for audio to grab a page?
@@ -694,7 +536,7 @@ void VideoStreamPlaybackTheora::update(float p_delta) {
 				queue_page(&og);
 			}
 		}
-#endif
+
 		/* If playback has begun, top audio buffer off immediately. */
 		//if(stateflag) audio_write_nonblocking();
 
@@ -728,7 +570,7 @@ void VideoStreamPlaybackTheora::play() {
 	}
 
 	playing = true;
-	delay_compensation = GlobalConfig::get_singleton()->get("audio/video_delay_compensation_ms");
+	delay_compensation = ProjectSettings::get_singleton()->get("audio/video_delay_compensation_ms");
 	delay_compensation /= 1000.0;
 };
 
@@ -751,10 +593,9 @@ bool VideoStreamPlaybackTheora::is_playing() const {
 void VideoStreamPlaybackTheora::set_paused(bool p_paused) {
 
 	paused = p_paused;
-	//pau = !p_paused;
 };
 
-bool VideoStreamPlaybackTheora::is_paused(bool p_paused) const {
+bool VideoStreamPlaybackTheora::is_paused() const {
 
 	return paused;
 };
@@ -783,12 +624,12 @@ int VideoStreamPlaybackTheora::get_loop_count() const {
 	return 0;
 };
 
-float VideoStreamPlaybackTheora::get_pos() const {
+float VideoStreamPlaybackTheora::get_playback_position() const {
 
 	return get_time();
 };
 
-void VideoStreamPlaybackTheora::seek_pos(float p_time){
+void VideoStreamPlaybackTheora::seek(float p_time){
 
 	// no
 };
@@ -882,32 +723,10 @@ VideoStreamPlaybackTheora::~VideoStreamPlaybackTheora() {
 		memdelete(file);
 };
 
-RES ResourceFormatLoaderVideoStreamTheora::load(const String &p_path, const String &p_original_path, Error *r_error) {
-	if (r_error)
-		*r_error = ERR_FILE_CANT_OPEN;
+void VideoStreamTheora::_bind_methods() {
 
-	VideoStreamTheora *stream = memnew(VideoStreamTheora);
-	stream->set_file(p_path);
+	ClassDB::bind_method(D_METHOD("set_file", "file"), &VideoStreamTheora::set_file);
+	ClassDB::bind_method(D_METHOD("get_file"), &VideoStreamTheora::get_file);
 
-	if (r_error)
-		*r_error = OK;
-
-	return Ref<VideoStreamTheora>(stream);
-}
-
-void ResourceFormatLoaderVideoStreamTheora::get_recognized_extensions(List<String> *p_extensions) const {
-
-	p_extensions->push_back("ogm");
-	p_extensions->push_back("ogv");
-}
-bool ResourceFormatLoaderVideoStreamTheora::handles_type(const String &p_type) const {
-	return (p_type == "VideoStream" || p_type == "VideoStreamTheora");
-}
-
-String ResourceFormatLoaderVideoStreamTheora::get_resource_type(const String &p_path) const {
-
-	String exl = p_path.get_extension().to_lower();
-	if (exl == "ogm" || exl == "ogv")
-		return "VideoStreamTheora";
-	return "";
+	ADD_PROPERTY(PropertyInfo(Variant::STRING, "file", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NOEDITOR | PROPERTY_USAGE_INTERNAL), "set_file", "get_file");
 }

@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "quick_hull.h"
 #include "map.h"
 
@@ -38,11 +39,11 @@ Error QuickHull::build(const Vector<Vector3> &p_points, Geometry::MeshData &r_me
 
 	/* CREATE AABB VOLUME */
 
-	Rect3 aabb;
+	AABB aabb;
 	for (int i = 0; i < p_points.size(); i++) {
 
 		if (i == 0) {
-			aabb.pos = p_points[i];
+			aabb.position = p_points[i];
 		} else {
 			aabb.expand_to(p_points[i]);
 		}
@@ -58,7 +59,7 @@ Error QuickHull::build(const Vector<Vector3> &p_points, Geometry::MeshData &r_me
 
 	for (int i = 0; i < p_points.size(); i++) {
 
-		Vector3 sp = p_points[i].snapped(0.0001);
+		Vector3 sp = p_points[i].snapped(Vector3(0.0001, 0.0001, 0.0001));
 		if (valid_cache.has(sp)) {
 			valid_points[i] = false;
 			//print_line("INVALIDATED: "+itos(i));
@@ -73,10 +74,10 @@ Error QuickHull::build(const Vector<Vector3> &p_points, Geometry::MeshData &r_me
 	int longest_axis = aabb.get_longest_axis_index();
 
 	//first two vertices are the most distant
-	int simplex[4];
+	int simplex[4] = { 0 };
 
 	{
-		real_t max, min;
+		real_t max = 0, min = 0;
 
 		for (int i = 0; i < p_points.size(); i++) {
 
@@ -99,7 +100,7 @@ Error QuickHull::build(const Vector<Vector3> &p_points, Geometry::MeshData &r_me
 	//third vertex is one most further away from the line
 
 	{
-		real_t maxd;
+		real_t maxd = 0;
 		Vector3 rel12 = p_points[simplex[0]] - p_points[simplex[1]];
 
 		for (int i = 0; i < p_points.size(); i++) {
@@ -121,7 +122,7 @@ Error QuickHull::build(const Vector<Vector3> &p_points, Geometry::MeshData &r_me
 	//fourth vertex is the one  most further away from the plane
 
 	{
-		real_t maxd;
+		real_t maxd = 0;
 		Plane p(p_points[simplex[0]], p_points[simplex[1]], p_points[simplex[2]]);
 
 		for (int i = 0; i < p_points.size(); i++) {
@@ -389,8 +390,8 @@ Error QuickHull::build(const Vector<Vector3> &p_points, Geometry::MeshData &r_me
 
 		for (int i = 0; i < f.indices.size(); i++) {
 
-			uint32_t a = E->get().indices[i];
-			uint32_t b = E->get().indices[(i + 1) % f.indices.size()];
+			int a = E->get().indices[i];
+			int b = E->get().indices[(i + 1) % f.indices.size()];
 			Edge e(a, b);
 
 			Map<Edge, RetFaceConnect>::Element *F = ret_edges.find(e);

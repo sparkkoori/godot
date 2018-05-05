@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef BIT_MASK_H
 #define BIT_MASK_H
 
@@ -38,11 +39,12 @@ class BitMap : public Resource {
 
 	GDCLASS(BitMap, Resource);
 	OBJ_SAVE_TYPE(BitMap);
-	RES_BASE_EXTENSION("pbm");
 
 	Vector<uint8_t> bitmask;
 	int width;
 	int height;
+
+	Vector<Vector2> _march_square(const Rect2i &rect, const Point2i &start) const;
 
 protected:
 	void _set_data(const Dictionary &p_d);
@@ -52,7 +54,7 @@ protected:
 
 public:
 	void create(const Size2 &p_size);
-	void create_from_image_alpha(const Ref<Image> &p_image);
+	void create_from_image_alpha(const Ref<Image> &p_image, float p_threshold = 0.1);
 
 	void set_bit(const Point2 &p_pos, bool p_value);
 	bool get_bit(const Point2 &p_pos) const;
@@ -60,6 +62,10 @@ public:
 	int get_true_bit_count() const;
 
 	Size2 get_size() const;
+
+	void grow_mask(int p_pixels, const Rect2 &p_rect);
+
+	Vector<Vector<Vector2> > clip_opaque_to_polygons(const Rect2 &p_rect, float p_epsilon = 2.0) const;
 
 	BitMap();
 };

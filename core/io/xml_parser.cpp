@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "xml_parser.h"
 #include "print_string.h"
 //#define DEBUG_XML
@@ -369,23 +370,23 @@ void XMLParser::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("is_empty"), &XMLParser::is_empty);
 	ClassDB::bind_method(D_METHOD("get_current_line"), &XMLParser::get_current_line);
 	ClassDB::bind_method(D_METHOD("skip_section"), &XMLParser::skip_section);
-	ClassDB::bind_method(D_METHOD("seek", "pos"), &XMLParser::seek);
+	ClassDB::bind_method(D_METHOD("seek", "position"), &XMLParser::seek);
 	ClassDB::bind_method(D_METHOD("open", "file"), &XMLParser::open);
 	ClassDB::bind_method(D_METHOD("open_buffer", "buffer"), &XMLParser::open_buffer);
 
-	BIND_CONSTANT(NODE_NONE);
-	BIND_CONSTANT(NODE_ELEMENT);
-	BIND_CONSTANT(NODE_ELEMENT_END);
-	BIND_CONSTANT(NODE_TEXT);
-	BIND_CONSTANT(NODE_COMMENT);
-	BIND_CONSTANT(NODE_CDATA);
-	BIND_CONSTANT(NODE_UNKNOWN);
+	BIND_ENUM_CONSTANT(NODE_NONE);
+	BIND_ENUM_CONSTANT(NODE_ELEMENT);
+	BIND_ENUM_CONSTANT(NODE_ELEMENT_END);
+	BIND_ENUM_CONSTANT(NODE_TEXT);
+	BIND_ENUM_CONSTANT(NODE_COMMENT);
+	BIND_ENUM_CONSTANT(NODE_CDATA);
+	BIND_ENUM_CONSTANT(NODE_UNKNOWN);
 };
 
 Error XMLParser::read() {
 
 	// if not end reached, parse the node
-	if (P && (P - data) < length - 1 && *P != 0) {
+	if (P && (P - data) < (int64_t)length - 1 && *P != 0) {
 		_parse_current_node();
 		return OK;
 	}

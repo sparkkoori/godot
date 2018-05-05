@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,23 +27,24 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "resource_preloader_editor_plugin.h"
 
 #include "editor/editor_settings.h"
-#include "global_config.h"
 #include "io/resource_loader.h"
+#include "project_settings.h"
 
 void ResourcePreloaderEditor::_gui_input(Ref<InputEvent> p_event) {
 }
 
 void ResourcePreloaderEditor::_notification(int p_what) {
 
-	if (p_what == NOTIFICATION_FIXED_PROCESS) {
+	if (p_what == NOTIFICATION_PHYSICS_PROCESS) {
 	}
 
 	if (p_what == NOTIFICATION_ENTER_TREE) {
 		load->set_icon(get_icon("Folder", "EditorIcons"));
-		_delete->set_icon(get_icon("Del", "EditorIcons"));
+		_delete->set_icon(get_icon("Remove", "EditorIcons"));
 	}
 
 	if (p_what == NOTIFICATION_READY) {
@@ -157,7 +158,6 @@ void ResourcePreloaderEditor::_paste_pressed() {
 	if (!r.is_valid()) {
 		dialog->set_text(TTR("Resource clipboard is empty!"));
 		dialog->set_title(TTR("Error!"));
-		//dialog->get_cancel()->set_text("Close");
 		dialog->get_ok()->set_text(TTR("Close"));
 		dialog->popup_centered_minsize();
 		return; ///beh should show an error i guess
@@ -229,15 +229,32 @@ void ResourcePreloaderEditor::_update_library() {
 		ERR_CONTINUE(r.is_null());
 
 		ti->set_tooltip(0, r->get_path());
-		String type = r->get_class();
-		ti->set_text(1, type);
+		ti->set_text(1, r->get_path());
+		ti->add_button(1, get_icon("InstanceOptions", "EditorIcons"), BUTTON_SUBSCENE, false, TTR("Open in Editor"));
+		ti->set_tooltip(1, TTR("Instance:") + " " + r->get_path() + "\n" + TTR("Type:") + " " + r->get_class());
+		ti->set_editable(1, false);
 		ti->set_selectable(1, false);
+		String type = r->get_class();
+		ti->set_text(2, type);
+		ti->set_selectable(2, false);
 
 		if (has_icon(type, "EditorIcons"))
-			ti->set_icon(1, get_icon(type, "EditorIcons"));
+			ti->set_icon(2, get_icon(type, "EditorIcons"));
 	}
 
 	//player->add_resource("default",resource);
+}
+
+void ResourcePreloaderEditor::_cell_button_pressed(Object *p_item, int p_column, int p_id) {
+
+	TreeItem *item = Object::cast_to<TreeItem>(p_item);
+	ERR_FAIL_COND(!item);
+
+	String rpath = item->get_text(p_column);
+
+	if (p_id == BUTTON_SUBSCENE) {
+		EditorInterface::get_singleton()->open_scene_from_path(rpath);
+	}
 }
 
 void ResourcePreloaderEditor::edit(ResourcePreloader *p_preloader) {
@@ -249,13 +266,13 @@ void ResourcePreloaderEditor::edit(ResourcePreloader *p_preloader) {
 	} else {
 
 		hide();
-		set_fixed_process(false);
+		set_physics_process(false);
 	}
 }
 
 Variant ResourcePreloaderEditor::get_drag_data_fw(const Point2 &p_point, Control *p_from) {
 
-	TreeItem *ti = tree->get_item_at_pos(p_point);
+	TreeItem *ti = tree->get_item_at_position(p_point);
 	if (!ti)
 		return Variant();
 
@@ -354,6 +371,7 @@ void ResourcePreloaderEditor::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_delete_confirm_pressed"), &ResourcePreloaderEditor::_delete_confirm_pressed);
 	ClassDB::bind_method(D_METHOD("_files_load_request"), &ResourcePreloaderEditor::_files_load_request);
 	ClassDB::bind_method(D_METHOD("_update_library"), &ResourcePreloaderEditor::_update_library);
+	ClassDB::bind_method(D_METHOD("_cell_button_pressed"), &ResourcePreloaderEditor::_cell_button_pressed);
 
 	ClassDB::bind_method(D_METHOD("get_drag_data_fw"), &ResourcePreloaderEditor::get_drag_data_fw);
 	ClassDB::bind_method(D_METHOD("can_drop_data_fw"), &ResourcePreloaderEditor::can_drop_data_fw);
@@ -362,7 +380,7 @@ void ResourcePreloaderEditor::_bind_methods() {
 
 ResourcePreloaderEditor::ResourcePreloaderEditor() {
 
-	//add_style_override("panel", get_stylebox("panel","Panel"));
+	//add_style_override("panel", EditorNode::get_singleton()->get_gui_base()->get_stylebox("panel","Panel"));
 
 	VBoxContainer *vbc = memnew(VBoxContainer);
 	add_child(vbc);
@@ -385,11 +403,14 @@ ResourcePreloaderEditor::ResourcePreloaderEditor() {
 	add_child(file);
 
 	tree = memnew(Tree);
-	tree->set_columns(2);
+	tree->connect("button_pressed", this, "_cell_button_pressed");
+	tree->set_columns(3);
 	tree->set_column_min_width(0, 3);
 	tree->set_column_min_width(1, 1);
+	tree->set_column_min_width(2, 1);
 	tree->set_column_expand(0, true);
 	tree->set_column_expand(1, true);
+	tree->set_column_expand(2, true);
 	tree->set_v_size_flags(SIZE_EXPAND_FILL);
 
 	tree->set_drag_forwarding(this);
@@ -410,7 +431,7 @@ ResourcePreloaderEditor::ResourcePreloaderEditor() {
 void ResourcePreloaderEditorPlugin::edit(Object *p_object) {
 
 	preloader_editor->set_undo_redo(&get_undo_redo());
-	ResourcePreloader *s = p_object->cast_to<ResourcePreloader>();
+	ResourcePreloader *s = Object::cast_to<ResourcePreloader>(p_object);
 	if (!s)
 		return;
 
@@ -445,7 +466,7 @@ ResourcePreloaderEditorPlugin::ResourcePreloaderEditorPlugin(EditorNode *p_node)
 	preloader_editor = memnew(ResourcePreloaderEditor);
 	preloader_editor->set_custom_minimum_size(Size2(0, 250));
 
-	button = editor->add_bottom_panel_item("ResourcePreloader", preloader_editor);
+	button = editor->add_bottom_panel_item(TTR("ResourcePreloader"), preloader_editor);
 	button->hide();
 
 	//preloader_editor->set_anchor( MARGIN_TOP, Control::ANCHOR_END);

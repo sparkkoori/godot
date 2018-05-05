@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef COLLISION_POLYGON_EDITOR_PLUGIN_H
 #define COLLISION_POLYGON_EDITOR_PLUGIN_H
 
@@ -35,19 +36,17 @@
 #include "scene/3d/collision_polygon.h"
 #include "scene/3d/immediate_geometry.h"
 #include "scene/3d/mesh_instance.h"
-#include "scene/gui/button_group.h"
 #include "scene/gui/tool_button.h"
 
 /**
 	@author Juan Linietsky <reduzio@gmail.com>
 */
 
-#if 0
 class CanvasItemEditor;
 
-class CollisionPolygonEditor : public HBoxContainer {
+class Polygon3DEditor : public HBoxContainer {
 
-	GDCLASS(CollisionPolygonEditor, HBoxContainer );
+	GDCLASS(Polygon3DEditor, HBoxContainer);
 
 	UndoRedo *undo_redo;
 	enum Mode {
@@ -62,16 +61,15 @@ class CollisionPolygonEditor : public HBoxContainer {
 	ToolButton *button_create;
 	ToolButton *button_edit;
 
-
 	Ref<SpatialMaterial> line_material;
 	Ref<SpatialMaterial> handle_material;
 
 	EditorNode *editor;
 	Panel *panel;
-	CollisionPolygon *node;
+	Spatial *node;
 	ImmediateGeometry *imgeom;
 	MeshInstance *pointsm;
-	Ref<Mesh> m;
+	Ref<ArrayMesh> m;
 
 	MenuButton *options;
 
@@ -80,6 +78,7 @@ class CollisionPolygonEditor : public HBoxContainer {
 	Vector<Vector2> pre_move_edit;
 	Vector<Vector2> wip;
 	bool wip_active;
+	bool snap_ignore;
 
 	float prev_depth;
 
@@ -87,38 +86,38 @@ class CollisionPolygonEditor : public HBoxContainer {
 	void _polygon_draw();
 	void _menu_option(int p_option);
 
+	float _get_depth();
+
 protected:
 	void _notification(int p_what);
 	void _node_removed(Node *p_node);
 	static void _bind_methods();
-public:
 
-	virtual bool forward_spatial_gui_input(Camera* p_camera,const InputEvent& p_event);
+public:
+	virtual bool forward_spatial_gui_input(Camera *p_camera, const Ref<InputEvent> &p_event);
 	void edit(Node *p_collision_polygon);
-	CollisionPolygonEditor(EditorNode *p_editor);
-	~CollisionPolygonEditor();
+	Polygon3DEditor(EditorNode *p_editor);
+	~Polygon3DEditor();
 };
 
-class CollisionPolygonEditorPlugin : public EditorPlugin {
+class Polygon3DEditorPlugin : public EditorPlugin {
 
-	GDCLASS( CollisionPolygonEditorPlugin, EditorPlugin );
+	GDCLASS(Polygon3DEditorPlugin, EditorPlugin);
 
-	CollisionPolygonEditor *collision_polygon_editor;
+	Polygon3DEditor *collision_polygon_editor;
 	EditorNode *editor;
 
 public:
+	virtual bool forward_spatial_gui_input(Camera *p_camera, const Ref<InputEvent> &p_event) { return collision_polygon_editor->forward_spatial_gui_input(p_camera, p_event); }
 
-	virtual bool forward_spatial_gui_input(Camera* p_camera,const InputEvent& p_event) { return collision_polygon_editor->forward_spatial_gui_input(p_camera,p_event); }
-
-	virtual String get_name() const { return "CollisionPolygon"; }
+	virtual String get_name() const { return "Polygon3DEditor"; }
 	bool has_main_screen() const { return false; }
-	virtual void edit(Object *p_node);
-	virtual bool handles(Object *p_node) const;
+	virtual void edit(Object *p_object);
+	virtual bool handles(Object *p_object) const;
 	virtual void make_visible(bool p_visible);
 
-	CollisionPolygonEditorPlugin(EditorNode *p_node);
-	~CollisionPolygonEditorPlugin();
-
+	Polygon3DEditorPlugin(EditorNode *p_node);
+	~Polygon3DEditorPlugin();
 };
-#endif
+
 #endif // COLLISION_POLYGON_EDITOR_PLUGIN_H

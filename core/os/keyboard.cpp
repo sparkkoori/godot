@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "keyboard.h"
 #include "os/os.h"
 
@@ -42,8 +43,8 @@ static const _KeyCodeText _keycodes[] = {
 		{KEY_TAB                           ,"Tab"},
 		{KEY_BACKTAB                       ,"BackTab"},
 		{KEY_BACKSPACE                     ,"BackSpace"},
-		{KEY_RETURN                        ,"Return"},
 		{KEY_ENTER                         ,"Enter"},
+		{KEY_KP_ENTER                      ,"Kp Enter"},
 		{KEY_INSERT                        ,"Insert"},
 		{KEY_DELETE                        ,"Delete"},
 		{KEY_PAUSE                         ,"Pause"},
@@ -60,7 +61,11 @@ static const _KeyCodeText _keycodes[] = {
 		{KEY_PAGEDOWN                      ,"PageDown"},
 		{KEY_SHIFT                         ,"Shift"},
 		{KEY_CONTROL                       ,"Control"},
+#ifdef OSX_ENABLED
+		{KEY_META                          ,"Command"},
+#else
 		{KEY_META                          ,"Meta"},
+#endif
 		{KEY_ALT                           ,"Alt"},
 		{KEY_CAPSLOCK                      ,"CapsLock"},
 		{KEY_NUMLOCK                       ,"NumLock"},
@@ -81,7 +86,6 @@ static const _KeyCodeText _keycodes[] = {
 		{KEY_F14                           ,"F14"},
 		{KEY_F15                           ,"F15"},
 		{KEY_F16                           ,"F16"},
-		{KEY_KP_ENTER                      ,"Kp Enter"},
 		{KEY_KP_MULTIPLY                   ,"Kp Multiply"},
 		{KEY_KP_DIVIDE                     ,"Kp Divide"},
 		{KEY_KP_SUBTRACT                   ,"Kp Subtract"},
@@ -295,8 +299,8 @@ bool keycode_has_unicode(uint32_t p_keycode) {
 		case KEY_TAB:
 		case KEY_BACKTAB:
 		case KEY_BACKSPACE:
-		case KEY_RETURN:
 		case KEY_ENTER:
+		case KEY_KP_ENTER:
 		case KEY_INSERT:
 		case KEY_DELETE:
 		case KEY_PAUSE:
@@ -334,7 +338,6 @@ bool keycode_has_unicode(uint32_t p_keycode) {
 		case KEY_F14:
 		case KEY_F15:
 		case KEY_F16:
-		case KEY_KP_ENTER:
 		case KEY_SUPER_L:
 		case KEY_SUPER_R:
 		case KEY_MENU:
@@ -392,14 +395,22 @@ bool keycode_has_unicode(uint32_t p_keycode) {
 String keycode_get_string(uint32_t p_code) {
 
 	String codestr;
-	if (p_code & KEY_MASK_SHIFT)
-		codestr += "Shift+";
-	if (p_code & KEY_MASK_ALT)
-		codestr += "Alt+";
-	if (p_code & KEY_MASK_CTRL)
-		codestr += "Ctrl+";
-	if (p_code & KEY_MASK_META)
-		codestr += "Meta+";
+	if (p_code & KEY_MASK_SHIFT) {
+		codestr += find_keycode_name(KEY_SHIFT);
+		codestr += "+";
+	}
+	if (p_code & KEY_MASK_ALT) {
+		codestr += find_keycode_name(KEY_ALT);
+		codestr += "+";
+	}
+	if (p_code & KEY_MASK_CTRL) {
+		codestr += find_keycode_name(KEY_CONTROL);
+		codestr += "+";
+	}
+	if (p_code & KEY_MASK_META) {
+		codestr += find_keycode_name(KEY_META);
+		codestr += "+";
+	}
 
 	p_code &= KEY_CODE_MASK;
 
@@ -435,77 +446,20 @@ int find_keycode(const String &p_code) {
 	return 0;
 }
 
-struct _KeyCodeReplace {
-	int from;
-	int to;
-};
+const char *find_keycode_name(int p_keycode) {
 
-static const _KeyCodeReplace _keycode_replace_qwertz[] = {
-	{ KEY_Y, KEY_Z },
-	{ KEY_Z, KEY_Y },
-	{ 0, 0 }
-};
+	const _KeyCodeText *kct = &_keycodes[0];
 
-static const _KeyCodeReplace _keycode_replace_azerty[] = {
-	{ KEY_W, KEY_Z },
-	{ KEY_Z, KEY_W },
-	{ KEY_A, KEY_Q },
-	{ KEY_Q, KEY_A },
-	{ KEY_SEMICOLON, KEY_M },
-	{ KEY_M, KEY_SEMICOLON },
-	{ 0, 0 }
-};
+	while (kct->text) {
 
-static const _KeyCodeReplace _keycode_replace_qzerty[] = {
-	{ KEY_W, KEY_Z },
-	{ KEY_Z, KEY_W },
-	{ KEY_SEMICOLON, KEY_M },
-	{ KEY_M, KEY_SEMICOLON },
-	{ 0, 0 }
-};
+		if (kct->code == p_keycode) {
+			return kct->text;
+		}
+		kct++;
+	}
 
-static const _KeyCodeReplace _keycode_replace_dvorak[] = {
-	{ KEY_UNDERSCORE, KEY_BRACELEFT },
-	{ KEY_EQUAL, KEY_BRACERIGHT },
-	{ KEY_Q, KEY_APOSTROPHE },
-	{ KEY_W, KEY_COMMA },
-	{ KEY_E, KEY_PERIOD },
-	{ KEY_R, KEY_P },
-	{ KEY_T, KEY_Y },
-	{ KEY_Y, KEY_F },
-	{ KEY_U, KEY_G },
-	{ KEY_I, KEY_C },
-	{ KEY_O, KEY_R },
-	{ KEY_P, KEY_L },
-	{ KEY_BRACELEFT, KEY_SLASH },
-	{ KEY_BRACERIGHT, KEY_EQUAL },
-	{ KEY_A, KEY_A },
-	{ KEY_S, KEY_O },
-	{ KEY_D, KEY_E },
-	{ KEY_F, KEY_U },
-	{ KEY_G, KEY_I },
-	{ KEY_H, KEY_D },
-	{ KEY_J, KEY_H },
-	{ KEY_K, KEY_T },
-	{ KEY_L, KEY_N },
-	{ KEY_SEMICOLON, KEY_S },
-	{ KEY_APOSTROPHE, KEY_UNDERSCORE },
-	{ KEY_Z, KEY_SEMICOLON },
-	{ KEY_X, KEY_Q },
-	{ KEY_C, KEY_J },
-	{ KEY_V, KEY_K },
-	{ KEY_B, KEY_X },
-	{ KEY_N, KEY_B },
-	{ KEY_M, KEY_M },
-	{ KEY_COMMA, KEY_W },
-	{ KEY_PERIOD, KEY_V },
-	{ KEY_SLASH, KEY_Z },
-	{ 0, 0 }
-};
-
-static const _KeyCodeReplace _keycode_replace_neo[] = {
-	{ 0, 0 }
-};
+	return "";
+}
 
 int keycode_get_count() {
 
@@ -526,31 +480,4 @@ int keycode_get_value_by_index(int p_index) {
 
 const char *keycode_get_name_by_index(int p_index) {
 	return _keycodes[p_index].text;
-}
-
-int latin_keyboard_keycode_convert(int p_keycode) {
-
-	const _KeyCodeReplace *kcr = NULL;
-	switch (OS::get_singleton()->get_latin_keyboard_variant()) {
-
-		case OS::LATIN_KEYBOARD_QWERTY: return p_keycode; break;
-		case OS::LATIN_KEYBOARD_QWERTZ: kcr = _keycode_replace_qwertz; break;
-		case OS::LATIN_KEYBOARD_AZERTY: kcr = _keycode_replace_azerty; break;
-		case OS::LATIN_KEYBOARD_QZERTY: kcr = _keycode_replace_qzerty; break;
-		case OS::LATIN_KEYBOARD_DVORAK: kcr = _keycode_replace_dvorak; break;
-		case OS::LATIN_KEYBOARD_NEO: kcr = _keycode_replace_neo; break;
-		default: return p_keycode;
-	}
-
-	if (!kcr) {
-		return p_keycode;
-	}
-
-	while (kcr->from) {
-		if (kcr->from == p_keycode)
-			return kcr->to;
-		kcr++;
-	}
-
-	return p_keycode;
 }

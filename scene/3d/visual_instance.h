@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef VISUAL_INSTANCE_H
 #define VISUAL_INSTANCE_H
 
@@ -62,10 +63,10 @@ public:
 	};
 
 	RID get_instance() const;
-	virtual Rect3 get_aabb() const = 0;
+	virtual AABB get_aabb() const = 0;
 	virtual PoolVector<Face3> get_faces(uint32_t p_usage_flags) const = 0;
 
-	virtual Rect3 get_transformed_aabb() const; // helper
+	virtual AABB get_transformed_aabb() const; // helper
 
 	void set_base(const RID &p_base);
 
@@ -76,16 +77,12 @@ public:
 	~VisualInstance();
 };
 
-class BakedLight;
-
 class GeometryInstance : public VisualInstance {
 
 	GDCLASS(GeometryInstance, VisualInstance);
 
 public:
 	enum Flags {
-		FLAG_CAST_SHADOW = VS::INSTANCE_FLAG_CAST_SHADOW,
-		FLAG_VISIBLE_IN_ALL_ROOMS = VS::INSTANCE_FLAG_VISIBLE_IN_ALL_ROOMS,
 		FLAG_USE_BAKED_LIGHT = VS::INSTANCE_FLAG_USE_BAKED_LIGHT,
 		FLAG_MAX = VS::INSTANCE_FLAG_MAX,
 	};

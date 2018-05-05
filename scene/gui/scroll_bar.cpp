@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,10 +27,13 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "scroll_bar.h"
+
 #include "os/keyboard.h"
 #include "os/os.h"
 #include "print_string.h"
+
 bool ScrollBar::focus_by_default = false;
 
 void ScrollBar::set_can_focus_by_default(bool p_can_focus) {
@@ -39,6 +42,11 @@ void ScrollBar::set_can_focus_by_default(bool p_can_focus) {
 }
 
 void ScrollBar::_gui_input(Ref<InputEvent> p_event) {
+
+	Ref<InputEventMouseMotion> m = p_event;
+	if (!m.is_valid() || drag.active) {
+		emit_signal("scrolling");
+	}
 
 	Ref<InputEventMouseButton> b = p_event;
 
@@ -98,7 +106,18 @@ void ScrollBar::_gui_input(Ref<InputEvent> p_event) {
 
 			if (ofs < grabber_ofs) {
 
-				set_value(get_value() - get_page());
+				if (scrolling) {
+					target_scroll = CLAMP(target_scroll - get_page(), get_min(), get_max() - get_page());
+				} else {
+					target_scroll = CLAMP(get_value() - get_page(), get_min(), get_max() - get_page());
+				}
+
+				if (smooth_scroll_enabled) {
+					scrolling = true;
+					set_physics_process_internal(true);
+				} else {
+					set_value(target_scroll);
+				}
 				return;
 			}
 
@@ -111,8 +130,18 @@ void ScrollBar::_gui_input(Ref<InputEvent> p_event) {
 				drag.value_at_click = get_as_ratio();
 				update();
 			} else {
+				if (scrolling) {
+					target_scroll = CLAMP(target_scroll + get_page(), get_min(), get_max() - get_page());
+				} else {
+					target_scroll = CLAMP(get_value() + get_page(), get_min(), get_max() - get_page());
+				}
 
-				set_value(get_value() + get_page());
+				if (smooth_scroll_enabled) {
+					scrolling = true;
+					set_physics_process_internal(true);
+				} else {
+					set_value(target_scroll);
+				}
 			}
 
 		} else {
@@ -121,8 +150,6 @@ void ScrollBar::_gui_input(Ref<InputEvent> p_event) {
 			update();
 		}
 	}
-
-	Ref<InputEventMouseMotion> m = p_event;
 
 	if (m.is_valid()) {
 
@@ -172,54 +199,40 @@ void ScrollBar::_gui_input(Ref<InputEvent> p_event) {
 		}
 	}
 
-	Ref<InputEventKey> k = p_event;
+	if (p_event->is_pressed()) {
 
-	if (k.is_valid()) {
+		if (p_event->is_action("ui_left")) {
 
-		if (!k->is_pressed())
-			return;
+			if (orientation != HORIZONTAL)
+				return;
+			set_value(get_value() - (custom_step >= 0 ? custom_step : get_step()));
 
-		switch (k->get_scancode()) {
+		} else if (p_event->is_action("ui_right")) {
 
-			case KEY_LEFT: {
+			if (orientation != HORIZONTAL)
+				return;
+			set_value(get_value() + (custom_step >= 0 ? custom_step : get_step()));
 
-				if (orientation != HORIZONTAL)
-					return;
-				set_value(get_value() - (custom_step >= 0 ? custom_step : get_step()));
+		} else if (p_event->is_action("ui_up")) {
 
-			} break;
-			case KEY_RIGHT: {
+			if (orientation != VERTICAL)
+				return;
 
-				if (orientation != HORIZONTAL)
-					return;
-				set_value(get_value() + (custom_step >= 0 ? custom_step : get_step()));
+			set_value(get_value() - (custom_step >= 0 ? custom_step : get_step()));
 
-			} break;
-			case KEY_UP: {
+		} else if (p_event->is_action("ui_down")) {
 
-				if (orientation != VERTICAL)
-					return;
+			if (orientation != VERTICAL)
+				return;
+			set_value(get_value() + (custom_step >= 0 ? custom_step : get_step()));
 
-				set_value(get_value() - (custom_step >= 0 ? custom_step : get_step()));
+		} else if (p_event->is_action("ui_home")) {
 
-			} break;
-			case KEY_DOWN: {
+			set_value(get_min());
 
-				if (orientation != VERTICAL)
-					return;
-				set_value(get_value() + (custom_step >= 0 ? custom_step : get_step()));
+		} else if (p_event->is_action("ui_end")) {
 
-			} break;
-			case KEY_HOME: {
-
-				set_value(get_min());
-
-			} break;
-			case KEY_END: {
-
-				set_value(get_max());
-
-			} break;
+			set_value(get_max());
 		}
 	}
 }
@@ -233,7 +246,14 @@ void ScrollBar::_notification(int p_what) {
 		Ref<Texture> decr = highlight == HIGHLIGHT_DECR ? get_icon("decrement_highlight") : get_icon("decrement");
 		Ref<Texture> incr = highlight == HIGHLIGHT_INCR ? get_icon("increment_highlight") : get_icon("increment");
 		Ref<StyleBox> bg = has_focus() ? get_stylebox("scroll_focus") : get_stylebox("scroll");
-		Ref<StyleBox> grabber = (drag.active || highlight == HIGHLIGHT_RANGE) ? get_stylebox("grabber_highlight") : get_stylebox("grabber");
+
+		Ref<StyleBox> grabber;
+		if (drag.active)
+			grabber = get_stylebox("grabber_pressed");
+		else if (highlight == HIGHLIGHT_RANGE)
+			grabber = get_stylebox("grabber_highlight");
+		else
+			grabber = get_stylebox("grabber");
 
 		Point2 ofs;
 
@@ -284,32 +304,47 @@ void ScrollBar::_notification(int p_what) {
 
 		if (has_node(drag_slave_path)) {
 			Node *n = get_node(drag_slave_path);
-			drag_slave = n->cast_to<Control>();
+			drag_slave = Object::cast_to<Control>(n);
 		}
 
 		if (drag_slave) {
 			drag_slave->connect("gui_input", this, "_drag_slave_input");
-			drag_slave->connect("tree_exited", this, "_drag_slave_exit", varray(), CONNECT_ONESHOT);
+			drag_slave->connect("tree_exiting", this, "_drag_slave_exit", varray(), CONNECT_ONESHOT);
 		}
 	}
 	if (p_what == NOTIFICATION_EXIT_TREE) {
 
 		if (drag_slave) {
 			drag_slave->disconnect("gui_input", this, "_drag_slave_input");
-			drag_slave->disconnect("tree_exited", this, "_drag_slave_exit");
+			drag_slave->disconnect("tree_exiting", this, "_drag_slave_exit");
 		}
 
 		drag_slave = NULL;
 	}
 
-	if (p_what == NOTIFICATION_FIXED_PROCESS) {
+	if (p_what == NOTIFICATION_INTERNAL_PHYSICS_PROCESS) {
 
-		if (drag_slave_touching) {
+		if (scrolling) {
+			if (get_value() != target_scroll) {
+				double target = target_scroll - get_value();
+				double dist = sqrt(target * target);
+				double vel = ((target / dist) * 500) * get_physics_process_delta_time();
+
+				if (Math::abs(vel) >= dist) {
+					set_value(target_scroll);
+				} else {
+					set_value(get_value() + vel);
+				}
+			} else {
+				scrolling = false;
+				set_physics_process_internal(false);
+			}
+		} else if (drag_slave_touching) {
 
 			if (drag_slave_touching_deaccel) {
 
 				Vector2 pos = Vector2(orientation == HORIZONTAL ? get_value() : 0, orientation == VERTICAL ? get_value() : 0);
-				pos += drag_slave_speed * get_fixed_process_delta_time();
+				pos += drag_slave_speed * get_physics_process_delta_time();
 
 				bool turnoff = false;
 
@@ -329,7 +364,7 @@ void ScrollBar::_notification(int p_what) {
 
 					float sgn_x = drag_slave_speed.x < 0 ? -1 : 1;
 					float val_x = Math::abs(drag_slave_speed.x);
-					val_x -= 1000 * get_fixed_process_delta_time();
+					val_x -= 1000 * get_physics_process_delta_time();
 
 					if (val_x < 0) {
 						turnoff = true;
@@ -353,7 +388,7 @@ void ScrollBar::_notification(int p_what) {
 
 					float sgn_y = drag_slave_speed.y < 0 ? -1 : 1;
 					float val_y = Math::abs(drag_slave_speed.y);
-					val_y -= 1000 * get_fixed_process_delta_time();
+					val_y -= 1000 * get_physics_process_delta_time();
 
 					if (val_y < 0) {
 						turnoff = true;
@@ -362,7 +397,7 @@ void ScrollBar::_notification(int p_what) {
 				}
 
 				if (turnoff) {
-					set_fixed_process(false);
+					set_physics_process_internal(false);
 					drag_slave_touching = false;
 					drag_slave_touching_deaccel = false;
 				}
@@ -373,10 +408,10 @@ void ScrollBar::_notification(int p_what) {
 
 					Vector2 diff = drag_slave_accum - last_drag_slave_accum;
 					last_drag_slave_accum = drag_slave_accum;
-					drag_slave_speed = diff / get_fixed_process_delta_time();
+					drag_slave_speed = diff / get_physics_process_delta_time();
 				}
 
-				time_since_motion += get_fixed_process_delta_time();
+				time_since_motion += get_physics_process_delta_time();
 			}
 		}
 	}
@@ -531,7 +566,7 @@ void ScrollBar::_drag_slave_input(const Ref<InputEvent> &p_input) {
 		if (mb->is_pressed()) {
 
 			if (drag_slave_touching) {
-				set_fixed_process(false);
+				set_physics_process_internal(false);
 				drag_slave_touching_deaccel = false;
 				drag_slave_touching = false;
 				drag_slave_speed = Vector2();
@@ -551,7 +586,7 @@ void ScrollBar::_drag_slave_input(const Ref<InputEvent> &p_input) {
 				drag_slave_touching_deaccel = false;
 				time_since_motion = 0;
 				if (drag_slave_touching) {
-					set_fixed_process(true);
+					set_physics_process_internal(true);
 					time_since_motion = 0;
 				}
 			}
@@ -563,7 +598,7 @@ void ScrollBar::_drag_slave_input(const Ref<InputEvent> &p_input) {
 				if (drag_slave_speed == Vector2()) {
 					drag_slave_touching_deaccel = false;
 					drag_slave_touching = false;
-					set_fixed_process(false);
+					set_physics_process_internal(false);
 				} else {
 
 					drag_slave_touching_deaccel = true;
@@ -606,7 +641,7 @@ void ScrollBar::set_drag_slave(const NodePath &p_path) {
 
 		if (drag_slave) {
 			drag_slave->disconnect("gui_input", this, "_drag_slave_input");
-			drag_slave->disconnect("tree_exited", this, "_drag_slave_exit");
+			drag_slave->disconnect("tree_exiting", this, "_drag_slave_exit");
 		}
 	}
 
@@ -617,12 +652,12 @@ void ScrollBar::set_drag_slave(const NodePath &p_path) {
 
 		if (has_node(p_path)) {
 			Node *n = get_node(p_path);
-			drag_slave = n->cast_to<Control>();
+			drag_slave = Object::cast_to<Control>(n);
 		}
 
 		if (drag_slave) {
 			drag_slave->connect("gui_input", this, "_drag_slave_input");
-			drag_slave->connect("tree_exited", this, "_drag_slave_exit", varray(), CONNECT_ONESHOT);
+			drag_slave->connect("tree_exiting", this, "_drag_slave_exit", varray(), CONNECT_ONESHOT);
 		}
 	}
 }
@@ -632,137 +667,13 @@ NodePath ScrollBar::get_drag_slave() const {
 	return drag_slave_path;
 }
 
-#if 0
-
-void ScrollBar::mouse_button(const Point2& p_pos, int b->get_button_index(),bool b->is_pressed(),int p_modifier_mask) {
-
-	// wheel!
-
-	if (b->get_button_index()==BUTTON_WHEEL_UP && b->is_pressed()) {
-
-		if (orientation==VERTICAL)
-			set_val( get_val() - get_page() / 4.0 );
-		else
-			set_val( get_val() + get_page() / 4.0 );
-
-	}
-	if (b->get_button_index()==BUTTON_WHEEL_DOWN && b->is_pressed()) {
-
-		if (orientation==HORIZONTAL)
-			set_val( get_val() - get_page() / 4.0 );
-		else
-			set_val( get_val() + get_page() / 4.0  );
-	}
-
-	if (b->get_button_index()!=BUTTON_LEFT)
-		return;
-
-	if (b->is_pressed()) {
-
-		int ofs = orientation==VERTICAL ? p_pos.y : p_pos.x ;
-		int grabber_ofs = get_grabber_offset();
-		int grabber_size = get_grabber_size();
-
-		if ( ofs < grabber_ofs ) {
-
-			set_val( get_val() - get_page() );
-
-		} else if (ofs > grabber_ofs + grabber_size ) {
-
-			set_val( get_val() + get_page() );
-
-		} else {
-
-
-			drag.active=true;
-			drag.pos_at_click=get_click_pos(p_pos);
-			drag.value_at_click=get_unit_value();
-		}
-
-
-	} else {
-
-		drag.active=false;
-	}
-
-}
-void ScrollBar::mouse_motion(const Point2& p_pos, const Point2& p_rel, int b->get_button_index()_mask) {
-
-	if (!drag.active)
-		return;
-
-	double value_ofs=drag.value_at_click+(get_click_pos(p_pos)-drag.pos_at_click);
-
-
-	value_ofs=value_ofs*( get_max() - get_min() );
-	if (value_ofs<get_min())
-		value_ofs=get_min();
-	if (value_ofs>(get_max()-get_page()))
-		value_ofs=get_max()-get_page();
-	if (get_val()==value_ofs)
-		return; //don't bother if the value is the same
-
-	set_val( value_ofs );
-
+void ScrollBar::set_smooth_scroll_enabled(bool p_enable) {
+	smooth_scroll_enabled = p_enable;
 }
 
-bool ScrollBar::key(unsigned long p_unicode, unsigned long p_scan_code,bool b->is_pressed(),bool p_repeat,int p_modifier_mask) {
-
-	if (!b->is_pressed())
-		return false;
-
-	switch (p_scan_code) {
-
-	case KEY_LEFT: {
-
-		if (orientation!=HORIZONTAL)
-			return false;
-		set_val( get_val() - get_step() );
-
-	} break;
-	case KEY_RIGHT: {
-
-		if (orientation!=HORIZONTAL)
-			return false;
-		set_val( get_val() + get_step() );
-
-	} break;
-	case KEY_UP: {
-
-		if (orientation!=VERTICAL)
-			return false;
-
-		set_val( get_val() - get_step() );
-
-
-	} break;
-	case KEY_DOWN: {
-
-		if (orientation!=VERTICAL)
-			return false;
-		set_val( get_val() + get_step() );
-
-	} break;
-	case KEY_HOME: {
-
-		set_val( get_min() );
-
-	} break;
-	case KEY_END: {
-
-		set_val( get_max() );
-
-	} break;
-
-	default:
-		return false;
-
-	}
-
-	return true;
+bool ScrollBar::is_smooth_scroll_enabled() const {
+	return smooth_scroll_enabled;
 }
-
-#endif
 
 void ScrollBar::_bind_methods() {
 
@@ -771,6 +682,8 @@ void ScrollBar::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_custom_step"), &ScrollBar::get_custom_step);
 	ClassDB::bind_method(D_METHOD("_drag_slave_input"), &ScrollBar::_drag_slave_input);
 	ClassDB::bind_method(D_METHOD("_drag_slave_exit"), &ScrollBar::_drag_slave_exit);
+
+	ADD_SIGNAL(MethodInfo("scrolling"));
 
 	ADD_PROPERTY(PropertyInfo(Variant::REAL, "custom_step", PROPERTY_HINT_RANGE, "-1,4096"), "set_custom_step", "get_custom_step");
 }
@@ -787,6 +700,10 @@ ScrollBar::ScrollBar(Orientation p_orientation) {
 	drag_slave_speed = Vector2();
 	drag_slave_touching = false;
 	drag_slave_touching_deaccel = false;
+
+	scrolling = false;
+	target_scroll = 0;
+	smooth_scroll_enabled = false;
 
 	if (focus_by_default)
 		set_focus_mode(FOCUS_ALL);

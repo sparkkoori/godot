@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef RESOURCE_PRELOADER_EDITOR_PLUGIN_H
 #define RESOURCE_PRELOADER_EDITOR_PLUGIN_H
 
@@ -40,6 +41,10 @@
 class ResourcePreloaderEditor : public PanelContainer {
 
 	GDCLASS(ResourcePreloaderEditor, PanelContainer);
+
+	enum {
+		BUTTON_SUBSCENE = 0,
+	};
 
 	Button *load;
 	Button *_delete;
@@ -60,6 +65,7 @@ class ResourcePreloaderEditor : public PanelContainer {
 	void _delete_pressed();
 	void _delete_confirm_pressed();
 	void _update_library();
+	void _cell_button_pressed(Object *p_item, int p_column, int p_id);
 	void _item_edited();
 
 	UndoRedo *undo_redo;
@@ -91,8 +97,8 @@ class ResourcePreloaderEditorPlugin : public EditorPlugin {
 public:
 	virtual String get_name() const { return "ResourcePreloader"; }
 	bool has_main_screen() const { return false; }
-	virtual void edit(Object *p_node);
-	virtual bool handles(Object *p_node) const;
+	virtual void edit(Object *p_object);
+	virtual bool handles(Object *p_object) const;
 	virtual void make_visible(bool p_visible);
 
 	ResourcePreloaderEditorPlugin(EditorNode *p_node);

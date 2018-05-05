@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef WORLD_H
 #define WORLD_H
 
@@ -41,7 +42,7 @@ class VisibilityNotifier;
 
 class World : public Resource {
 	GDCLASS(World, Resource);
-	RES_BASE_EXTENSION("wrd");
+	RES_BASE_EXTENSION("world");
 
 private:
 	RID space;
@@ -60,8 +61,8 @@ protected:
 	void _update_camera(Camera *p_camera);
 	void _remove_camera(Camera *p_camera);
 
-	void _register_notifier(VisibilityNotifier *p_notifier, const Rect3 &p_rect);
-	void _update_notifier(VisibilityNotifier *p_notifier, const Rect3 &p_rect);
+	void _register_notifier(VisibilityNotifier *p_notifier, const AABB &p_rect);
+	void _update_notifier(VisibilityNotifier *p_notifier, const AABB &p_rect);
 	void _remove_notifier(VisibilityNotifier *p_notifier);
 	friend class Viewport;
 	void _update(uint64_t p_frame);
@@ -75,6 +76,8 @@ public:
 
 	void set_fallback_environment(const Ref<Environment> &p_environment);
 	Ref<Environment> get_fallback_environment() const;
+
+	void get_camera_list(List<Camera *> *r_cameras);
 
 	PhysicsDirectSpaceState *get_direct_space_state();
 

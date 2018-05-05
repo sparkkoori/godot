@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "image_compress_squish.h"
 
 #include "print_string.h"
@@ -64,6 +65,7 @@ void image_decompress_squish(Image *p_image) {
 	} else if (p_image->get_format() == Image::FORMAT_RGTC_RG) {
 		squish_flags = squish::kBc5;
 	} else {
+		print_line("Can't decompress unknown format: " + itos(p_image->get_format()));
 		ERR_FAIL_COND(true);
 		return;
 	}
@@ -79,7 +81,7 @@ void image_decompress_squish(Image *p_image) {
 	p_image->create(p_image->get_width(), p_image->get_height(), p_image->has_mipmaps(), target_format, data);
 }
 
-void image_compress_squish(Image *p_image, bool p_srgb) {
+void image_compress_squish(Image *p_image, Image::CompressSource p_source) {
 
 	if (p_image->get_format() >= Image::FORMAT_DXT1)
 		return; //do not compress, already compressed
@@ -90,15 +92,20 @@ void image_compress_squish(Image *p_image, bool p_srgb) {
 	if (p_image->get_format() <= Image::FORMAT_RGBA8) {
 
 		int squish_comp = squish::kColourRangeFit;
-		Image::Format target_format;
+		Image::Format target_format = Image::FORMAT_RGBA8;
 
 		Image::DetectChannels dc = p_image->get_detected_channels();
 
 		p_image->convert(Image::FORMAT_RGBA8); //still uses RGBA to convert
 
-		if (p_srgb && (dc == Image::DETECTED_R || dc == Image::DETECTED_RG)) {
+		if (p_source == Image::COMPRESS_SOURCE_SRGB && (dc == Image::DETECTED_R || dc == Image::DETECTED_RG)) {
 			//R and RG do not support SRGB
 			dc = Image::DETECTED_RGB;
+		}
+
+		if (p_source == Image::COMPRESS_SOURCE_NORMAL) {
+			//R and RG do not support SRGB
+			dc = Image::DETECTED_RG;
 		}
 
 		switch (dc) {
@@ -134,6 +141,10 @@ void image_compress_squish(Image *p_image, bool p_srgb) {
 				squish_comp |= squish::kDxt5;
 
 			} break;
+			default: {
+				ERR_PRINT("Unknown image format, defaulting to RGBA8");
+				break;
+			}
 		}
 
 		PoolVector<uint8_t> data;

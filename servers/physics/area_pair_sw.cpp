@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,17 +27,19 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "area_pair_sw.h"
 #include "collision_solver_sw.h"
 
 bool AreaPairSW::setup(real_t p_step) {
 
-	if (!area->test_collision_mask(body)) {
-		colliding = false;
-		return false;
-	}
+	bool result = false;
 
-	bool result = CollisionSolverSW::solve_static(body->get_shape(body_shape), body->get_transform() * body->get_shape_transform(body_shape), area->get_shape(area_shape), area->get_transform() * area->get_shape_transform(area_shape), NULL, this);
+	if (area->is_shape_set_as_disabled(area_shape) || body->is_shape_set_as_disabled(body_shape)) {
+		result = false;
+	} else if (area->test_collision_mask(body) && CollisionSolverSW::solve_static(body->get_shape(body_shape), body->get_transform() * body->get_shape_transform(body_shape), area->get_shape(area_shape), area->get_transform() * area->get_shape_transform(area_shape), NULL, this)) {
+		result = true;
+	}
 
 	if (result != colliding) {
 
@@ -95,13 +97,12 @@ AreaPairSW::~AreaPairSW() {
 
 bool Area2PairSW::setup(real_t p_step) {
 
-	if (!area_a->test_collision_mask(area_b)) {
-		colliding = false;
-		return false;
+	bool result = false;
+	if (area_a->is_shape_set_as_disabled(shape_a) || area_b->is_shape_set_as_disabled(shape_b)) {
+		result = false;
+	} else if (area_a->test_collision_mask(area_b) && CollisionSolverSW::solve_static(area_a->get_shape(shape_a), area_a->get_transform() * area_a->get_shape_transform(shape_a), area_b->get_shape(shape_b), area_b->get_transform() * area_b->get_shape_transform(shape_b), NULL, this)) {
+		result = true;
 	}
-
-	//bool result = area_a->test_collision_mask(area_b) && CollisionSolverSW::solve(area_a->get_shape(shape_a),area_a->get_transform() * area_a->get_shape_transform(shape_a),Vector2(),area_b->get_shape(shape_b),area_b->get_transform() * area_b->get_shape_transform(shape_b),Vector2(),NULL,this);
-	bool result = CollisionSolverSW::solve_static(area_a->get_shape(shape_a), area_a->get_transform() * area_a->get_shape_transform(shape_a), area_b->get_shape(shape_b), area_b->get_transform() * area_b->get_shape_transform(shape_b), NULL, this);
 
 	if (result != colliding) {
 

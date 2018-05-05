@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef VEHICLE_BODY_H
 #define VEHICLE_BODY_H
 
@@ -131,22 +132,19 @@ public:
 	void set_roll_influence(float p_value);
 	float get_roll_influence() const;
 
+	float get_skidinfo() const;
+
+	String get_configuration_warning() const;
+
 	VehicleWheel();
 };
 
-class VehicleBody : public PhysicsBody {
+class VehicleBody : public RigidBody {
 
-	GDCLASS(VehicleBody, PhysicsBody);
-
-	real_t mass;
-	real_t friction;
+	GDCLASS(VehicleBody, RigidBody);
 
 	float engine_force;
 	float brake;
-
-	Vector3 linear_velocity;
-	Vector3 angular_velocity;
-	bool ccd;
 
 	real_t m_pitchControl;
 	real_t m_steeringValue;
@@ -170,7 +168,7 @@ class VehicleBody : public PhysicsBody {
 		btVehicleWheelContactPoint(PhysicsDirectBodyState *s, PhysicsBody *body1, const Vector3 &frictionPosWorld, const Vector3 &frictionDirectionWorld, real_t maxImpulse);
 	};
 
-	void _resolve_single_bilateral(PhysicsDirectBodyState *s, const Vector3 &pos1, PhysicsBody *body2, const Vector3 &pos2, const Vector3 &normal, real_t &impulse);
+	void _resolve_single_bilateral(PhysicsDirectBodyState *s, const Vector3 &pos1, PhysicsBody *body2, const Vector3 &pos2, const Vector3 &normal, real_t &impulse, real_t p_rollInfluence);
 	real_t _calc_rolling_friction(btVehicleWheelContactPoint &contactPoint);
 
 	void _update_friction(PhysicsDirectBodyState *s);
@@ -187,22 +185,14 @@ class VehicleBody : public PhysicsBody {
 	void _direct_state_changed(Object *p_state);
 
 public:
-	void set_mass(real_t p_mass);
-	real_t get_mass() const;
-
-	void set_friction(real_t p_friction);
-	real_t get_friction() const;
-
 	void set_engine_force(float p_engine_force);
 	float get_engine_force() const;
 
-	void set_brake(float p_force);
+	void set_brake(float p_brake);
 	float get_brake() const;
 
 	void set_steering(float p_steering);
 	float get_steering() const;
-
-	Vector3 get_linear_velocity() const;
 
 	VehicleBody();
 };

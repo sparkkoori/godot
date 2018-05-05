@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,17 +27,18 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef PROJECT_MANAGER_H
 #define PROJECT_MANAGER_H
 
-#include "editor/asset_library_editor_plugin.h"
+#include "editor/plugins/asset_library_editor_plugin.h"
 #include "scene/gui/dialogs.h"
 #include "scene/gui/file_dialog.h"
 #include "scene/gui/scroll_container.h"
 #include "scene/gui/tool_button.h"
 #include "scene/gui/tree.h"
 
-class NewProjectDialog;
+class ProjectDialog;
 class ProjectListFilter;
 
 class ProjectManager : public Control {
@@ -45,6 +46,7 @@ class ProjectManager : public Control {
 
 	Button *erase_btn;
 	Button *open_btn;
+	Button *rename_btn;
 	Button *run_btn;
 
 	FileDialog *scan_dir;
@@ -53,13 +55,16 @@ class ProjectManager : public Control {
 
 	ProjectListFilter *project_filter;
 
+	ConfirmationDialog *language_restart_ask;
 	ConfirmationDialog *erase_ask;
 	ConfirmationDialog *multi_open_ask;
 	ConfirmationDialog *multi_run_ask;
 	ConfirmationDialog *multi_scan_ask;
-	NewProjectDialog *npdialog;
+	AcceptDialog *run_error_diag;
+	AcceptDialog *dialog_error;
+	ProjectDialog *npdialog;
 	ScrollContainer *scroll;
-	VBoxContainer *scroll_childs;
+	VBoxContainer *scroll_children;
 	Map<String, String> selected_list; // name -> main_scene
 	String last_clicked;
 	bool importing;
@@ -68,24 +73,34 @@ class ProjectManager : public Control {
 
 	TabContainer *tabs;
 
+	OptionButton *language_btn;
+
 	Control *gui_base;
 
+	ConfirmationDialog *open_templates;
+
+	void _open_asset_library();
 	void _scan_projects();
 	void _run_project();
 	void _run_project_confirm();
 	void _open_project();
 	void _open_project_confirm();
+	void _show_project(const String &p_path);
 	void _import_project();
 	void _new_project();
+	void _rename_project();
 	void _erase_project();
 	void _erase_project_confirm();
 	void _update_project_buttons();
+	void _language_selected(int p_id);
+	void _restart_confirm();
 	void _exit_dialog();
 	void _scan_begin(const String &p_base);
 
 	void _load_recent_projects();
 	void _on_project_created(const String &dir);
-	void _update_scroll_pos(const String &dir);
+	void _on_project_renamed();
+	void _update_scroll_position(const String &dir);
 	void _scan_dir(DirAccess *da, float pos, float total, List<String> *r_projects);
 
 	void _install_project(const String &p_zip_path, const String &p_title);

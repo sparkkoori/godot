@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef THEME_H
 #define THEME_H
 
@@ -43,7 +44,7 @@
 class Theme : public Resource {
 
 	GDCLASS(Theme, Resource);
-	RES_BASE_EXTENSION("thm");
+	RES_BASE_EXTENSION("theme");
 
 	static Ref<Theme> default_theme;
 
@@ -143,8 +144,8 @@ public:
 	static void set_default(const Ref<Theme> &p_default);
 
 	static void set_default_icon(const Ref<Texture> &p_icon);
-	static void set_default_style(const Ref<StyleBox> &p_default_style);
-	static void set_default_font(const Ref<Font> &p_default_font);
+	static void set_default_style(const Ref<StyleBox> &p_style);
+	static void set_default_font(const Ref<Font> &p_font);
 
 	void set_default_theme_font(const Ref<Font> &p_default_font);
 	Ref<Font> get_default_theme_font() const;
@@ -159,7 +160,7 @@ public:
 	Ref<Shader> get_shader(const StringName &p_name, const StringName &p_type) const;
 	bool has_shader(const StringName &p_name, const StringName &p_type) const;
 	void clear_shader(const StringName &p_name, const StringName &p_type);
-	void get_shader_list(const StringName &p_name, List<StringName> *p_list) const;
+	void get_shader_list(const StringName &p_type, List<StringName> *p_list) const;
 
 	void set_stylebox(const StringName &p_name, const StringName &p_type, const Ref<StyleBox> &p_style);
 	Ref<StyleBox> get_stylebox(const StringName &p_name, const StringName &p_type) const;

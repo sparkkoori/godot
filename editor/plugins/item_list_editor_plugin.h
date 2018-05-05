@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef ITEM_LIST_EDITOR_PLUGIN_H
 #define ITEM_LIST_EDITOR_PLUGIN_H
 
@@ -73,7 +74,9 @@ public:
 	virtual Ref<Texture> get_item_icon(int p_idx) const { return Ref<Texture>(); };
 
 	virtual void set_item_checkable(int p_idx, bool p_check) {}
+	virtual void set_item_radio_checkable(int p_idx, bool p_check) {}
 	virtual bool is_item_checkable(int p_idx) const { return false; };
+	virtual bool is_item_radio_checkable(int p_idx) const { return false; };
 
 	virtual void set_item_checked(int p_idx, bool p_checked) {}
 	virtual bool is_item_checked(int p_idx) const { return false; };
@@ -116,8 +119,8 @@ public:
 	virtual void set_item_enabled(int p_idx, int p_enabled) { ob->set_item_disabled(p_idx, !p_enabled); }
 	virtual bool is_item_enabled(int p_idx) const { return !ob->is_item_disabled(p_idx); }
 
-	virtual void set_item_id(int p_idx, int p_id) { ob->set_item_ID(p_idx, p_id); }
-	virtual int get_item_id(int p_idx) const { return ob->get_item_ID(p_idx); }
+	virtual void set_item_id(int p_idx, int p_id) { ob->set_item_id(p_idx, p_id); }
+	virtual int get_item_id(int p_idx) const { return ob->get_item_id(p_idx); }
 
 	virtual void add_item();
 	virtual int get_item_count() const;
@@ -144,7 +147,9 @@ public:
 	virtual Ref<Texture> get_item_icon(int p_idx) const { return pp->get_item_icon(p_idx); }
 
 	virtual void set_item_checkable(int p_idx, bool p_check) { pp->set_item_as_checkable(p_idx, p_check); }
+	virtual void set_item_radio_checkable(int p_idx, bool p_check) { pp->set_item_as_radio_checkable(p_idx, p_check); }
 	virtual bool is_item_checkable(int p_idx) const { return pp->is_item_checkable(p_idx); }
+	virtual bool is_item_radio_checkable(int p_idx) const { return pp->is_item_radio_checkable(p_idx); }
 
 	virtual void set_item_checked(int p_idx, bool p_checked) { pp->set_item_checked(p_idx, p_checked); }
 	virtual bool is_item_checked(int p_idx) const { return pp->is_item_checked(p_idx); }
@@ -152,8 +157,8 @@ public:
 	virtual void set_item_enabled(int p_idx, int p_enabled) { pp->set_item_disabled(p_idx, !p_enabled); }
 	virtual bool is_item_enabled(int p_idx) const { return !pp->is_item_disabled(p_idx); }
 
-	virtual void set_item_id(int p_idx, int p_id) { pp->set_item_ID(p_idx, p_idx); }
-	virtual int get_item_id(int p_idx) const { return pp->get_item_ID(p_idx); }
+	virtual void set_item_id(int p_idx, int p_id) { pp->set_item_id(p_idx, p_idx); }
+	virtual int get_item_id(int p_idx) const { return pp->get_item_id(p_idx); }
 
 	virtual void set_item_separator(int p_idx, bool p_separator) { pp->set_item_as_separator(p_idx, p_separator); }
 	virtual bool is_item_separator(int p_idx) const { return pp->is_item_separator(p_idx); }
@@ -163,6 +168,35 @@ public:
 	virtual void erase(int p_idx);
 
 	ItemListPopupMenuPlugin();
+};
+
+///////////////////////////////////////////////////////////////
+
+class ItemListItemListPlugin : public ItemListPlugin {
+
+	GDCLASS(ItemListItemListPlugin, ItemListPlugin);
+
+	ItemList *pp;
+
+public:
+	virtual void set_object(Object *p_object);
+	virtual bool handles(Object *p_object) const;
+	virtual int get_flags() const;
+
+	virtual void set_item_text(int p_idx, const String &p_text) { pp->set_item_text(p_idx, p_text); }
+	virtual String get_item_text(int p_idx) const { return pp->get_item_text(p_idx); }
+
+	virtual void set_item_icon(int p_idx, const Ref<Texture> &p_tex) { pp->set_item_icon(p_idx, p_tex); }
+	virtual Ref<Texture> get_item_icon(int p_idx) const { return pp->get_item_icon(p_idx); }
+
+	virtual void set_item_enabled(int p_idx, int p_enabled) { pp->set_item_disabled(p_idx, !p_enabled); }
+	virtual bool is_item_enabled(int p_idx) const { return !pp->is_item_disabled(p_idx); }
+
+	virtual void add_item();
+	virtual int get_item_count() const;
+	virtual void erase(int p_idx);
+
+	ItemListItemListPlugin();
 };
 
 ///////////////////////////////////////////////////////////////
@@ -214,8 +248,8 @@ class ItemListEditorPlugin : public EditorPlugin {
 public:
 	virtual String get_name() const { return "ItemList"; }
 	bool has_main_screen() const { return false; }
-	virtual void edit(Object *p_node);
-	virtual bool handles(Object *p_node) const;
+	virtual void edit(Object *p_object);
+	virtual bool handles(Object *p_object) const;
 	virtual void make_visible(bool p_visible);
 
 	ItemListEditorPlugin(EditorNode *p_node);

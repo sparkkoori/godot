@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "math_2d.h"
 
 real_t Vector2::angle() const {
@@ -97,77 +98,19 @@ real_t Vector2::cross(const Vector2 &p_other) const {
 	return x * p_other.y - y * p_other.x;
 }
 
-Vector2 Vector2::cross(real_t p_other) const {
-
-	return Vector2(p_other * y, -p_other * x);
-}
-
-Vector2 Vector2::operator+(const Vector2 &p_v) const {
-
-	return Vector2(x + p_v.x, y + p_v.y);
-}
-void Vector2::operator+=(const Vector2 &p_v) {
-
-	x += p_v.x;
-	y += p_v.y;
-}
-Vector2 Vector2::operator-(const Vector2 &p_v) const {
-
-	return Vector2(x - p_v.x, y - p_v.y);
-}
-void Vector2::operator-=(const Vector2 &p_v) {
-
-	x -= p_v.x;
-	y -= p_v.y;
-}
-
-Vector2 Vector2::operator*(const Vector2 &p_v1) const {
-
-	return Vector2(x * p_v1.x, y * p_v1.y);
-};
-
-Vector2 Vector2::operator*(const real_t &rvalue) const {
-
-	return Vector2(x * rvalue, y * rvalue);
-};
-void Vector2::operator*=(const real_t &rvalue) {
-
-	x *= rvalue;
-	y *= rvalue;
-};
-
-Vector2 Vector2::operator/(const Vector2 &p_v1) const {
-
-	return Vector2(x / p_v1.x, y / p_v1.y);
-};
-
-Vector2 Vector2::operator/(const real_t &rvalue) const {
-
-	return Vector2(x / rvalue, y / rvalue);
-};
-
-void Vector2::operator/=(const real_t &rvalue) {
-
-	x /= rvalue;
-	y /= rvalue;
-};
-
-Vector2 Vector2::operator-() const {
-
-	return Vector2(-x, -y);
-}
-
-bool Vector2::operator==(const Vector2 &p_vec2) const {
-
-	return x == p_vec2.x && y == p_vec2.y;
-}
-bool Vector2::operator!=(const Vector2 &p_vec2) const {
-
-	return x != p_vec2.x || y != p_vec2.y;
-}
 Vector2 Vector2::floor() const {
 
 	return Vector2(Math::floor(x), Math::floor(y));
+}
+
+Vector2 Vector2::ceil() const {
+
+	return Vector2(Math::ceil(x), Math::ceil(y));
+}
+
+Vector2 Vector2::round() const {
+
+	return Vector2(Math::round(x), Math::round(y));
 }
 
 Vector2 Vector2::rotated(real_t p_by) const {
@@ -205,33 +148,6 @@ Vector2 Vector2::clamped(real_t p_len) const {
 	return v;
 }
 
-Vector2 Vector2::cubic_interpolate_soft(const Vector2 &p_b, const Vector2 &p_pre_a, const Vector2 &p_post_b, real_t p_t) const {
-#if 0
-	k[0] = ((*this) (vi[0] + 1, vi[1], vi[2])) - ((*this) (vi[0],
-	vi[1],vi[2])); //fk = a0
-	k[1] = (((*this) (vi[0] + 1, vi[1], vi[2])) - ((*this) ((int) (v(0) -
-	1), vi[1],vi[2])))*0.5; //dk = a1
-	k[2] = (((*this) ((int) (v(0) + 2), vi[1], vi[2])) - ((*this) (vi[0],
-	vi[1],vi[2])))*0.5; //dk+1
-	k[3] = k[0]*3 - k[1]*2 - k[2];//a2
-	k[4] = k[1] + k[2] - k[0]*2;//a3
-
-	//ip = a3(t-tk)³ + a2(t-tk)² + a1(t-tk) + a0
-	//
-	//a3 = dk + dk+1 - Dk
-	//a2 = 3Dk - 2dk - dk+1
-	//a1 = dk
-	//a0 = fk
-	//
-	//dk = (fk+1 - fk-1)*0.5
-	//Dk = (fk+1 - fk)
-
-	real_t dk =
-#endif
-
-	return Vector2();
-}
-
 Vector2 Vector2::cubic_interpolate(const Vector2 &p_b, const Vector2 &p_pre_a, const Vector2 &p_post_b, real_t p_t) const {
 
 	Vector2 p0 = p_pre_a;
@@ -249,54 +165,25 @@ Vector2 Vector2::cubic_interpolate(const Vector2 &p_b, const Vector2 &p_pre_a, c
 						(2.0 * p0 - 5.0 * p1 + 4 * p2 - p3) * t2 +
 						(-p0 + 3.0 * p1 - 3.0 * p2 + p3) * t3);
 	return out;
-
-	/*
-	real_t mu = p_t;
-	real_t mu2 = mu*mu;
-
-	Vector2 a0 = p_post_b - p_b - p_pre_a + *this;
-	Vector2 a1 = p_pre_a - *this - a0;
-	Vector2 a2 = p_b - p_pre_a;
-	Vector2 a3 = *this;
-
-	return ( a0*mu*mu2 + a1*mu2 + a2*mu + a3 );
-*/
-	/*
-	real_t t = p_t;
-	real_t t2 = t*t;
-	real_t t3 = t2*t;
-
-	real_t a =  2.0*t3- 3.0*t2 + 1;
-	real_t b = -2.0*t3+ 3.0*t2;
-	real_t c =    t3- 2.0*t2 + t;
-	real_t d =    t3- t2;
-
-	Vector2 p_a=*this;
-
-	return Vector2(
-		(a * p_a.x) + (b *p_b.x) + (c * p_pre_a.x) + (d * p_post_b.x),
-		(a * p_a.y) + (b *p_b.y) + (c * p_pre_a.y) + (d * p_post_b.y)
-	);
-*/
 }
 
 // slide returns the component of the vector along the given plane, specified by its normal vector.
-Vector2 Vector2::slide(const Vector2 &p_n) const {
+Vector2 Vector2::slide(const Vector2 &p_normal) const {
 #ifdef MATH_CHECKS
-	ERR_FAIL_COND_V(p_n.is_normalized() == false, Vector2());
+	ERR_FAIL_COND_V(p_normal.is_normalized() == false, Vector2());
 #endif
-	return *this - p_n * this->dot(p_n);
+	return *this - p_normal * this->dot(p_normal);
 }
 
-Vector2 Vector2::bounce(const Vector2 &p_n) const {
-	return -reflect(p_n);
+Vector2 Vector2::bounce(const Vector2 &p_normal) const {
+	return -reflect(p_normal);
 }
 
-Vector2 Vector2::reflect(const Vector2 &p_n) const {
+Vector2 Vector2::reflect(const Vector2 &p_normal) const {
 #ifdef MATH_CHECKS
-	ERR_FAIL_COND_V(p_n.is_normalized() == false, Vector2());
+	ERR_FAIL_COND_V(p_normal.is_normalized() == false, Vector2());
 #endif
-	return 2.0 * p_n * this->dot(p_n) - *this;
+	return 2.0 * p_normal * this->dot(p_normal) - *this;
 }
 
 bool Rect2::intersects_segment(const Point2 &p_from, const Point2 &p_to, Point2 *r_pos, Point2 *r_normal) const {

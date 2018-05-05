@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,14 +27,15 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifdef TOOLS_ENABLED
 
 #ifndef COLLADA_H
 #define COLLADA_H
 
-#include "global_config.h"
 #include "io/xml_parser.h"
 #include "map.h"
+#include "project_settings.h"
 #include "scene/resources/material.h"
 
 class Collada {
@@ -613,7 +614,7 @@ private: // private stuff
 	void _parse_curve_geometry(XMLParser &parser, String p_id, String p_name);
 
 	void _parse_skin_controller(XMLParser &parser, String p_id);
-	void _parse_morph_controller(XMLParser &parser, String id);
+	void _parse_morph_controller(XMLParser &parser, String p_id);
 	void _parse_controller(XMLParser &parser);
 
 	Node *_parse_visual_instance_geometry(XMLParser &parser);

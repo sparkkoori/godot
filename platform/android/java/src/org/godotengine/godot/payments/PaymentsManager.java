@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 package org.godotengine.godot.payments;
 
 import android.app.Activity;
@@ -92,11 +93,21 @@ public class PaymentsManager {
 		@Override
 		public void onServiceDisconnected(ComponentName name) {
 			mService = null;
+
+			// At this stage, godotPaymentV3 might not have been initialized yet.
+			if (godotPaymentV3 != null) {
+				godotPaymentV3.callbackDisconnected();
+			}
 		}
 
 		@Override
 		public void onServiceConnected(ComponentName name, IBinder service) {
 			mService = IInAppBillingService.Stub.asInterface(service);
+
+			// At this stage, godotPaymentV3 might not have been initialized yet.
+			if (godotPaymentV3 != null) {
+				godotPaymentV3.callbackConnected();
+			}
 		}
 	};
 
@@ -105,8 +116,7 @@ public class PaymentsManager {
 
 			@Override
 			protected void error(String message) {
-				godotPaymentV3.callbackFail();
-
+				godotPaymentV3.callbackFail(message);
 			}
 
 			@Override
@@ -119,8 +129,12 @@ public class PaymentsManager {
 				godotPaymentV3.callbackAlreadyOwned(sku);
 			}
 
-		}.purchase(sku, transactionId);
+		}
+				.purchase(sku, transactionId);
+	}
 
+	public boolean isConnected() {
+		return mService != null;
 	}
 
 	public void consumeUnconsumedPurchases() {
@@ -134,17 +148,16 @@ public class PaymentsManager {
 			@Override
 			protected void error(String message) {
 				Log.d("godot", "consumeUnconsumedPurchases :" + message);
-				godotPaymentV3.callbackFailConsume();
-
+				godotPaymentV3.callbackFailConsume(message);
 			}
 
 			@Override
 			protected void notRequired() {
 				Log.d("godot", "callbackSuccessNoUnconsumedPurchases :");
 				godotPaymentV3.callbackSuccessNoUnconsumedPurchases();
-
 			}
-		}.consumeItAll();
+		}
+				.consumeItAll();
 	}
 
 	public void requestPurchased() {
@@ -209,23 +222,24 @@ public class PaymentsManager {
 
 						@Override
 						protected void error(String message) {
-							godotPaymentV3.callbackFail();
-
+							godotPaymentV3.callbackFail(message);
 						}
-					}.consume(sku);
+					}
+							.consume(sku);
 				}
 			}
 
 			@Override
 			protected void error(String message) {
-				godotPaymentV3.callbackFail();
+				godotPaymentV3.callbackFail(message);
 			}
 
 			@Override
 			protected void canceled() {
 				godotPaymentV3.callbackCancel();
 			}
-		}.handlePurchaseRequest(resultCode, data);
+		}
+				.handlePurchaseRequest(resultCode, data);
 	}
 
 	public void validatePurchase(String purchaseToken, final String sku) {
@@ -244,22 +258,23 @@ public class PaymentsManager {
 
 					@Override
 					protected void error(String message) {
-						godotPaymentV3.callbackFail();
+						godotPaymentV3.callbackFail(message);
 					}
-				}.consume(sku);
-
+				}
+						.consume(sku);
 			}
 
 			@Override
 			protected void error(String message) {
-				godotPaymentV3.callbackFail();
+				godotPaymentV3.callbackFail(message);
 			}
 
 			@Override
 			protected void canceled() {
 				godotPaymentV3.callbackCancel();
 			}
-		}.validatePurchase(sku);
+		}
+				.validatePurchase(sku);
 	}
 
 	public void setAutoConsume(boolean autoConsume) {
@@ -276,9 +291,10 @@ public class PaymentsManager {
 
 			@Override
 			protected void error(String message) {
-				godotPaymentV3.callbackFailConsume();
+				godotPaymentV3.callbackFailConsume(message);
 			}
-		}.consume(sku);
+		}
+				.consume(sku);
 	}
 
 	// Workaround to bug where sometimes response codes come as Long instead of Integer
@@ -287,8 +303,10 @@ public class PaymentsManager {
 		if (o == null) {
 			//logDebug("Bundle with null response code, assuming OK (known issue)");
 			return BILLING_RESPONSE_RESULT_OK;
-		} else if (o instanceof Integer) return ((Integer) o).intValue();
-		else if (o instanceof Long) return (int) ((Long) o).longValue();
+		} else if (o instanceof Integer)
+			return ((Integer)o).intValue();
+		else if (o instanceof Long)
+			return (int)((Long)o).longValue();
 		else {
 			//logError("Unexpected type for bundle response code.");
 			//logError(o.getClass().getName());
@@ -304,25 +322,41 @@ public class PaymentsManager {
 	 * It also includes the result code numerically.
 	 */
 	public static String getResponseDesc(int code) {
-		String[] iab_msgs = ("0:OK/1:User Canceled/2:Unknown/" +
-				"3:Billing Unavailable/4:Item unavailable/" +
-				"5:Developer Error/6:Error/7:Item Already Owned/" +
-				"8:Item not owned").split("/");
-		String[] iabhelper_msgs = ("0:OK/-1001:Remote exception during initialization/" +
-				"-1002:Bad response received/" +
-				"-1003:Purchase signature verification failed/" +
-				"-1004:Send intent failed/" +
-				"-1005:User cancelled/" +
-				"-1006:Unknown purchase response/" +
-				"-1007:Missing token/" +
-				"-1008:Unknown error/" +
-				"-1009:Subscriptions not available/" +
-				"-1010:Invalid consumption attempt").split("/");
+		String[] iab_msgs = ("0:OK/1:User Canceled/2:Unknown/"
+							 +
+							 "3:Billing Unavailable/4:Item unavailable/"
+							 +
+							 "5:Developer Error/6:Error/7:Item Already Owned/"
+							 +
+							 "8:Item not owned")
+									.split("/");
+		String[] iabhelper_msgs = ("0:OK/-1001:Remote exception during initialization/"
+								   +
+								   "-1002:Bad response received/"
+								   +
+								   "-1003:Purchase signature verification failed/"
+								   +
+								   "-1004:Send intent failed/"
+								   +
+								   "-1005:User cancelled/"
+								   +
+								   "-1006:Unknown purchase response/"
+								   +
+								   "-1007:Missing token/"
+								   +
+								   "-1008:Unknown error/"
+								   +
+								   "-1009:Subscriptions not available/"
+								   +
+								   "-1010:Invalid consumption attempt")
+										  .split("/");
 
 		if (code <= -1000) {
 			int index = -1000 - code;
-			if (index >= 0 && index < iabhelper_msgs.length) return iabhelper_msgs[index];
-			else return String.valueOf(code) + ":Unknown IAB Helper Error";
+			if (index >= 0 && index < iabhelper_msgs.length)
+				return iabhelper_msgs[index];
+			else
+				return String.valueOf(code) + ":Unknown IAB Helper Error";
 		} else if (code < 0 || code >= iab_msgs.length)
 			return String.valueOf(code) + ":Unknown";
 		else
@@ -375,7 +409,7 @@ public class PaymentsManager {
 						ArrayList<String> responseList = skuDetails.getStringArrayList("DETAILS_LIST");
 
 						for (String thisResponse : responseList) {
-							Log.d("godot", "response = "+thisResponse);
+							Log.d("godot", "response = " + thisResponse);
 							godotPaymentV3.addSkuDetail(thisResponse);
 						}
 					} catch (RemoteException e) {
@@ -385,7 +419,8 @@ public class PaymentsManager {
 				}
 				godotPaymentV3.completeSkuDetail();
 			}
-		})).start();
+		}))
+				.start();
 	}
 
 	private GodotPaymentV3 godotPaymentV3;
@@ -393,5 +428,4 @@ public class PaymentsManager {
 	public void setBaseSingleton(GodotPaymentV3 godotPaymentV3) {
 		this.godotPaymentV3 = godotPaymentV3;
 	}
-
 }

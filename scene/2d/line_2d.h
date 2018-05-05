@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,10 +27,10 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef LINE2D_H
 #define LINE2D_H
 
-#include "line_builder.h"
 #include "node_2d.h"
 
 class Line2D : public Node2D {
@@ -38,13 +38,35 @@ class Line2D : public Node2D {
 	GDCLASS(Line2D, Node2D)
 
 public:
+	enum LineJointMode {
+		LINE_JOINT_SHARP = 0,
+		LINE_JOINT_BEVEL,
+		LINE_JOINT_ROUND
+	};
+
+	enum LineCapMode {
+		LINE_CAP_NONE = 0,
+		LINE_CAP_BOX,
+		LINE_CAP_ROUND
+	};
+
+	enum LineTextureMode {
+		LINE_TEXTURE_NONE = 0,
+		LINE_TEXTURE_TILE
+		// TODO STRETCH mode
+	};
+
 	Line2D();
+
+	virtual Rect2 _edit_get_rect() const;
+	virtual bool _edit_use_rect() const;
+	virtual bool _edit_is_selected_on_click(const Point2 &p_point, double p_tolerance) const;
 
 	void set_points(const PoolVector<Vector2> &p_points);
 	PoolVector<Vector2> get_points() const;
 
-	void set_point_pos(int i, Vector2 pos);
-	Vector2 get_point_pos(int i) const;
+	void set_point_position(int i, Vector2 pos);
+	Vector2 get_point_position(int i) const;
 
 	int get_point_count() const;
 

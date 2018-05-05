@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef SCENE_TREE_EDITOR_H
 #define SCENE_TREE_EDITOR_H
 
@@ -56,31 +57,20 @@ class SceneTreeEditor : public Control {
 		BUTTON_GROUPS = 7,
 	};
 
-	enum {
-		SCENE_MENU_EDITABLE_CHILDREN,
-		SCENE_MENU_USE_PLACEHOLDER,
-		SCENE_MENU_OPEN,
-		SCENE_MENU_CLEAR_INHERITANCE,
-		SCENE_MENU_OPEN_INHERITED,
-		SCENE_MENU_CLEAR_INHERITANCE_CONFIRM,
-		SCENE_MENU_CLEAR_INSTANCING,
-	};
-
 	Tree *tree;
 	Node *selected;
-	PopupMenu *instance_menu;
-	PopupMenu *inheritance_menu;
 	ObjectID instance_node;
 
 	String filter;
 
 	AcceptDialog *error;
 	AcceptDialog *warning;
-	ConfirmationDialog *clear_inherit_confirm;
 
 	int blocked;
 
 	void _compute_hash(Node *p_node, uint64_t &hash);
+
+	void toggle_visible(Node *p_node);
 
 	bool _add_nodes(Node *p_node, TreeItem *p_parent);
 	void _test_update_tree();
@@ -91,6 +81,7 @@ class SceneTreeEditor : public Control {
 	TreeItem *_find(TreeItem *p_node, const NodePath &p_path);
 	void _notification(int p_what);
 	void _selected_changed();
+	void _deselect_items();
 	void _rename_node(ObjectID p_node, const String &p_name);
 
 	void _cell_collapsed(Object *p_obj);
@@ -114,12 +105,12 @@ class SceneTreeEditor : public Control {
 	static void _bind_methods();
 
 	void _cell_button_pressed(Object *p_item, int p_column, int p_id);
-	void _cell_multi_selected(Object *p_object, int p_cel, bool p_selected);
+	void _toggle_visible(Node *p_node);
+	void _cell_multi_selected(Object *p_object, int p_cell, bool p_selected);
 	void _update_selection(TreeItem *item);
 	void _node_script_changed(Node *p_node);
 	void _node_visibility_changed(Node *p_node);
 	void _update_visibility_color(Node *p_node, TreeItem *p_item);
-	void _subscene_option(int p_idx);
 
 	void _node_replace_owner(Node *p_base, Node *p_node, Node *p_root);
 

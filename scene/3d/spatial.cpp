@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,8 +27,10 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "spatial.h"
 
+#include "engine.h"
 #include "message_queue.h"
 #include "scene/main/viewport.h"
 #include "scene/scene_string_names.h"
@@ -72,16 +74,18 @@ SpatialGizmo::SpatialGizmo() {
 
 void Spatial::_notify_dirty() {
 
+#ifdef TOOLS_ENABLED
+	if ((data.gizmo.is_valid() || data.notify_transform) && !data.ignore_notification && !xform_change.in_list()) {
+#else
 	if (data.notify_transform && !data.ignore_notification && !xform_change.in_list()) {
 
+#endif
 		get_tree()->xform_change_list.add(&xform_change);
 	}
 }
 
 void Spatial::_update_local_transform() const {
-	data.local_transform.basis = Basis();
-	data.local_transform.basis.scale(data.scale);
-	data.local_transform.basis.rotate(data.rotation);
+	data.local_transform.basis.set_euler_scale(data.rotation, data.scale);
 
 	data.dirty &= ~DIRTY_LOCAL;
 }
@@ -104,9 +108,11 @@ void Spatial::_propagate_transform_changed(Spatial *p_origin) {
 			continue; //don't propagate to a toplevel
 		E->get()->_propagate_transform_changed(p_origin);
 	}
-
+#ifdef TOOLS_ENABLED
+	if ((data.gizmo.is_valid() || data.notify_transform) && !data.ignore_notification && !xform_change.in_list()) {
+#else
 	if (data.notify_transform && !data.ignore_notification && !xform_change.in_list()) {
-
+#endif
 		get_tree()->xform_change_list.add(&xform_change);
 	}
 	data.dirty |= DIRTY_GLOBAL;
@@ -121,14 +127,14 @@ void Spatial::_notification(int p_what) {
 
 			Node *p = get_parent();
 			if (p)
-				data.parent = p->cast_to<Spatial>();
+				data.parent = Object::cast_to<Spatial>(p);
 
 			if (data.parent)
 				data.C = data.parent->data.children.push_back(this);
 			else
 				data.C = NULL;
 
-			if (data.toplevel && !get_tree()->is_editor_hint()) {
+			if (data.toplevel && !Engine::get_singleton()->is_editor_hint()) {
 
 				if (data.parent) {
 					data.local_transform = data.parent->get_global_transform() * get_transform();
@@ -160,7 +166,7 @@ void Spatial::_notification(int p_what) {
 			data.viewport = NULL;
 			Node *parent = get_parent();
 			while (parent && !data.viewport) {
-				data.viewport = parent->cast_to<Viewport>();
+				data.viewport = Object::cast_to<Viewport>(parent);
 				parent = parent->get_parent();
 			}
 
@@ -168,18 +174,24 @@ void Spatial::_notification(int p_what) {
 
 			if (get_script_instance()) {
 
-				Variant::CallError err;
 				get_script_instance()->call_multilevel(SceneStringNames::get_singleton()->_enter_world, NULL, 0);
 			}
 #ifdef TOOLS_ENABLED
-			if (get_tree()->is_editor_hint()) {
+			if (Engine::get_singleton()->is_editor_hint()) {
 
 				//get_scene()->call_group(SceneMainLoop::GROUP_CALL_REALTIME,SceneStringNames::get_singleton()->_spatial_editor_group,SceneStringNames::get_singleton()->_request_gizmo,this);
 				get_tree()->call_group_flags(0, SceneStringNames::get_singleton()->_spatial_editor_group, SceneStringNames::get_singleton()->_request_gizmo, this);
 				if (!data.gizmo_disabled) {
 
-					if (data.gizmo.is_valid())
+					if (data.gizmo.is_valid()) {
 						data.gizmo->create();
+						if (data.gizmo->can_draw()) {
+							if (is_visible_in_tree()) {
+								data.gizmo->redraw();
+							}
+						}
+						data.gizmo->transform();
+					}
 				}
 			}
 #endif
@@ -195,7 +207,6 @@ void Spatial::_notification(int p_what) {
 
 			if (get_script_instance()) {
 
-				Variant::CallError err;
 				get_script_instance()->call_multilevel(SceneStringNames::get_singleton()->_exit_world, NULL, 0);
 			}
 
@@ -223,7 +234,7 @@ void Spatial::set_transform(const Transform &p_transform) {
 	data.dirty |= DIRTY_VECTORS;
 	_change_notify("translation");
 	_change_notify("rotation");
-	_change_notify("rotation_deg");
+	_change_notify("rotation_degrees");
 	_change_notify("scale");
 	_propagate_transform_changed(this);
 	if (data.notify_local_transform) {
@@ -274,37 +285,6 @@ Transform Spatial::get_global_transform() const {
 
 	return data.global_transform;
 }
-#if 0
-void Spatial::add_child_notify(Node *p_child) {
-/*
-	Spatial *s=p_child->cast_to<Spatial>();
-	if (!s)
-		return;
-
-	ERR_FAIL_COND(data.children_lock>0);
-
-	s->data.dirty=DIRTY_GLOBAL; // don't allow global transform to be valid
-	s->data.parent=this;
-	data.children.push_back(s);
-	s->data.C=data.children.back();
-*/
-}
-
-void Spatial::remove_child_notify(Node *p_child) {
-/*
-	Spatial *s=p_child->cast_to<Spatial>();
-	if (!s)
-		return;
-
-	ERR_FAIL_COND(data.children_lock>0);
-
-	if (s->data.C)
-		data.children.erase(s->data.C);
-	s->data.parent=NULL;
-	s->data.C=NULL;
-*/
-}
-#endif
 
 Spatial *Spatial::get_parent_spatial() const {
 
@@ -348,15 +328,9 @@ void Spatial::set_rotation(const Vector3 &p_euler_rad) {
 	}
 }
 
-void Spatial::set_rotation_in_degrees(const Vector3 &p_euler_deg) {
+void Spatial::set_rotation_degrees(const Vector3 &p_euler_deg) {
 
 	set_rotation(p_euler_deg * Math_PI / 180.0);
-}
-
-void Spatial::_set_rotation_deg(const Vector3 &p_euler_deg) {
-
-	WARN_PRINT("Deprecated method Spatial._set_rotation_deg(): This method was renamed to set_rotation_deg. Please adapt your code accordingly, as the old method will be obsoleted.");
-	set_rotation_in_degrees(p_euler_deg);
 }
 
 void Spatial::set_scale(const Vector3 &p_scale) {
@@ -391,17 +365,9 @@ Vector3 Spatial::get_rotation() const {
 	return data.rotation;
 }
 
-Vector3 Spatial::get_rotation_in_degrees() const {
+Vector3 Spatial::get_rotation_degrees() const {
 
 	return get_rotation() * 180.0 / Math_PI;
-}
-
-// Kept for compatibility after rename to set_rotd.
-// Could be removed after a couple releases.
-Vector3 Spatial::_get_rotation_deg() const {
-
-	WARN_PRINT("Deprecated method Spatial._get_rotation_deg(): This method was renamed to get_rotation_deg. Please adapt your code accordingly, as the old method will be obsoleted.");
-	return get_rotation_in_degrees();
 }
 
 Vector3 Spatial::get_scale() const {
@@ -442,7 +408,11 @@ void Spatial::set_gizmo(const Ref<SpatialGizmo> &p_gizmo) {
 	if (data.gizmo.is_valid() && is_inside_world()) {
 
 		data.gizmo->create();
-		data.gizmo->redraw();
+		if (data.gizmo->can_draw()) {
+			if (is_visible_in_tree()) {
+				data.gizmo->redraw();
+			}
+		}
 		data.gizmo->transform();
 	}
 
@@ -460,19 +430,24 @@ Ref<SpatialGizmo> Spatial::get_gizmo() const {
 #endif
 }
 
-#ifdef TOOLS_ENABLED
-
 void Spatial::_update_gizmo() {
 
+#ifdef TOOLS_ENABLED
+	if (!is_inside_world())
+		return;
 	data.gizmo_dirty = false;
 	if (data.gizmo.is_valid()) {
-		if (is_visible_in_tree())
-			data.gizmo->redraw();
-		else
-			data.gizmo->clear();
+		if (data.gizmo->can_draw()) {
+			if (is_visible_in_tree())
+				data.gizmo->redraw();
+			else
+				data.gizmo->clear();
+		}
 	}
+#endif
 }
 
+#ifdef TOOLS_ENABLED
 void Spatial::set_disable_gizmo(bool p_enabled) {
 
 	data.gizmo_disabled = p_enabled;
@@ -486,7 +461,7 @@ void Spatial::set_as_toplevel(bool p_enabled) {
 
 	if (data.toplevel == p_enabled)
 		return;
-	if (is_inside_tree() && !get_tree()->is_editor_hint()) {
+	if (is_inside_tree() && !Engine::get_singleton()->is_editor_hint()) {
 
 		if (p_enabled)
 			set_transform(get_global_transform());
@@ -541,10 +516,7 @@ void Spatial::show() {
 	if (!is_inside_tree())
 		return;
 
-	if (!data.parent || is_visible_in_tree()) {
-
-		_propagate_visibility_changed();
-	}
+	_propagate_visibility_changed();
 }
 
 void Spatial::hide() {
@@ -552,14 +524,14 @@ void Spatial::hide() {
 	if (!data.visible)
 		return;
 
-	bool was_visible = is_visible_in_tree();
 	data.visible = false;
 
-	if (!data.parent || was_visible) {
+	if (!is_inside_tree())
+		return;
 
-		_propagate_visibility_changed();
-	}
+	_propagate_visibility_changed();
 }
+
 bool Spatial::is_visible_in_tree() const {
 
 	const Spatial *s = this;
@@ -587,30 +559,36 @@ bool Spatial::is_visible() const {
 	return data.visible;
 }
 
-void Spatial::rotate(const Vector3 &p_normal, float p_radians) {
-
+void Spatial::rotate_object_local(const Vector3 &p_axis, float p_angle) {
 	Transform t = get_transform();
-	t.basis.rotate(p_normal, p_radians);
+	t.basis.rotate_local(p_axis, p_angle);
 	set_transform(t);
 }
 
-void Spatial::rotate_x(float p_radians) {
+void Spatial::rotate(const Vector3 &p_axis, float p_angle) {
 
 	Transform t = get_transform();
-	t.basis.rotate(Vector3(1, 0, 0), p_radians);
+	t.basis.rotate(p_axis, p_angle);
 	set_transform(t);
 }
 
-void Spatial::rotate_y(float p_radians) {
+void Spatial::rotate_x(float p_angle) {
 
 	Transform t = get_transform();
-	t.basis.rotate(Vector3(0, 1, 0), p_radians);
+	t.basis.rotate(Vector3(1, 0, 0), p_angle);
 	set_transform(t);
 }
-void Spatial::rotate_z(float p_radians) {
+
+void Spatial::rotate_y(float p_angle) {
 
 	Transform t = get_transform();
-	t.basis.rotate(Vector3(0, 0, 1), p_radians);
+	t.basis.rotate(Vector3(0, 1, 0), p_angle);
+	set_transform(t);
+}
+void Spatial::rotate_z(float p_angle) {
+
+	Transform t = get_transform();
+	t.basis.rotate(Vector3(0, 0, 1), p_angle);
 	set_transform(t);
 }
 
@@ -621,19 +599,45 @@ void Spatial::translate(const Vector3 &p_offset) {
 	set_transform(t);
 }
 
+void Spatial::translate_object_local(const Vector3 &p_offset) {
+	Transform t = get_transform();
+
+	Transform s;
+	s.translate(p_offset);
+	set_transform(t * s);
+}
+
 void Spatial::scale(const Vector3 &p_ratio) {
 
 	Transform t = get_transform();
 	t.basis.scale(p_ratio);
 	set_transform(t);
 }
-void Spatial::global_rotate(const Vector3 &p_normal, float p_radians) {
 
-	Basis rotation(p_normal, p_radians);
+void Spatial::scale_object_local(const Vector3 &p_scale) {
+	Transform t = get_transform();
+	t.basis.scale_local(p_scale);
+	set_transform(t);
+}
+
+void Spatial::global_rotate(const Vector3 &p_axis, float p_angle) {
+
+	Basis rotation(p_axis, p_angle);
 	Transform t = get_global_transform();
 	t.basis = rotation * t.basis;
 	set_global_transform(t);
 }
+
+void Spatial::global_scale(const Vector3 &p_scale) {
+
+	Basis s;
+	s.set_scale(p_scale);
+
+	Transform t = get_global_transform();
+	t.basis = s * t.basis;
+	set_global_transform(t);
+}
+
 void Spatial::global_translate(const Vector3 &p_offset) {
 	Transform t = get_global_transform();
 	t.origin += p_offset;
@@ -652,7 +656,7 @@ void Spatial::set_identity() {
 	set_transform(Transform());
 }
 
-void Spatial::look_at(const Vector3 &p_target, const Vector3 &p_up_normal) {
+void Spatial::look_at(const Vector3 &p_target, const Vector3 &p_up) {
 
 	Transform lookat;
 	lookat.origin = get_global_transform().origin;
@@ -661,20 +665,30 @@ void Spatial::look_at(const Vector3 &p_target, const Vector3 &p_up_normal) {
 		ERR_FAIL();
 	}
 
-	if (p_up_normal.cross(p_target - lookat.origin) == Vector3()) {
+	if (p_up.cross(p_target - lookat.origin) == Vector3()) {
 		ERR_EXPLAIN("Up vector and direction between node origin and target are aligned, look_at() failed");
 		ERR_FAIL();
 	}
-	lookat = lookat.looking_at(p_target, p_up_normal);
+	lookat = lookat.looking_at(p_target, p_up);
 	set_global_transform(lookat);
 }
 
-void Spatial::look_at_from_pos(const Vector3 &p_pos, const Vector3 &p_target, const Vector3 &p_up_normal) {
+void Spatial::look_at_from_position(const Vector3 &p_pos, const Vector3 &p_target, const Vector3 &p_up) {
 
 	Transform lookat;
 	lookat.origin = p_pos;
-	lookat = lookat.looking_at(p_target, p_up_normal);
+	lookat = lookat.looking_at(p_target, p_up);
 	set_global_transform(lookat);
+}
+
+Vector3 Spatial::to_local(Vector3 p_global) const {
+
+	return get_global_transform().affine_inverse().xform(p_global);
+}
+
+Vector3 Spatial::to_global(Vector3 p_local) const {
+
+	return get_global_transform().xform(p_local);
 }
 
 void Spatial::set_notify_transform(bool p_enable) {
@@ -699,10 +713,10 @@ void Spatial::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_transform"), &Spatial::get_transform);
 	ClassDB::bind_method(D_METHOD("set_translation", "translation"), &Spatial::set_translation);
 	ClassDB::bind_method(D_METHOD("get_translation"), &Spatial::get_translation);
-	ClassDB::bind_method(D_METHOD("set_rotation", "rotation_rad"), &Spatial::set_rotation);
+	ClassDB::bind_method(D_METHOD("set_rotation", "euler"), &Spatial::set_rotation);
 	ClassDB::bind_method(D_METHOD("get_rotation"), &Spatial::get_rotation);
-	ClassDB::bind_method(D_METHOD("set_rotation_deg", "rotation_deg"), &Spatial::set_rotation_in_degrees);
-	ClassDB::bind_method(D_METHOD("get_rotation_deg"), &Spatial::get_rotation_in_degrees);
+	ClassDB::bind_method(D_METHOD("set_rotation_degrees", "euler_degrees"), &Spatial::set_rotation_degrees);
+	ClassDB::bind_method(D_METHOD("get_rotation_degrees"), &Spatial::get_rotation_degrees);
 	ClassDB::bind_method(D_METHOD("set_scale", "scale"), &Spatial::set_scale);
 	ClassDB::bind_method(D_METHOD("get_scale"), &Spatial::get_scale);
 	ClassDB::bind_method(D_METHOD("set_global_transform", "global"), &Spatial::set_global_transform);
@@ -711,21 +725,15 @@ void Spatial::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_ignore_transform_notification", "enabled"), &Spatial::set_ignore_transform_notification);
 	ClassDB::bind_method(D_METHOD("set_as_toplevel", "enable"), &Spatial::set_as_toplevel);
 	ClassDB::bind_method(D_METHOD("is_set_as_toplevel"), &Spatial::is_set_as_toplevel);
-	ClassDB::bind_method(D_METHOD("get_world:World"), &Spatial::get_world);
+	ClassDB::bind_method(D_METHOD("get_world"), &Spatial::get_world);
 
-	// TODO: Obsolete those two methods (old name) properly (GH-4397)
-	ClassDB::bind_method(D_METHOD("_set_rotation_deg", "rotation_deg"), &Spatial::_set_rotation_deg);
-	ClassDB::bind_method(D_METHOD("_get_rotation_deg"), &Spatial::_get_rotation_deg);
-
-#ifdef TOOLS_ENABLED
 	ClassDB::bind_method(D_METHOD("_update_gizmo"), &Spatial::_update_gizmo);
-#endif
 
 	ClassDB::bind_method(D_METHOD("update_gizmo"), &Spatial::update_gizmo);
-	ClassDB::bind_method(D_METHOD("set_gizmo", "gizmo:SpatialGizmo"), &Spatial::set_gizmo);
-	ClassDB::bind_method(D_METHOD("get_gizmo:SpatialGizmo"), &Spatial::get_gizmo);
+	ClassDB::bind_method(D_METHOD("set_gizmo", "gizmo"), &Spatial::set_gizmo);
+	ClassDB::bind_method(D_METHOD("get_gizmo"), &Spatial::get_gizmo);
 
-	ClassDB::bind_method(D_METHOD("set_visible"), &Spatial::set_visible);
+	ClassDB::bind_method(D_METHOD("set_visible", "visible"), &Spatial::set_visible);
 	ClassDB::bind_method(D_METHOD("is_visible"), &Spatial::is_visible);
 	ClassDB::bind_method(D_METHOD("is_visible_in_tree"), &Spatial::is_visible_in_tree);
 	ClassDB::bind_method(D_METHOD("show"), &Spatial::show);
@@ -737,27 +745,34 @@ void Spatial::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_notify_transform", "enable"), &Spatial::set_notify_transform);
 	ClassDB::bind_method(D_METHOD("is_transform_notification_enabled"), &Spatial::is_transform_notification_enabled);
 
-	void rotate(const Vector3 &p_normal, float p_radians);
-	void rotate_x(float p_radians);
-	void rotate_y(float p_radians);
-	void rotate_z(float p_radians);
+	void rotate(const Vector3 &p_axis, float p_angle);
+	void rotate_x(float p_angle);
+	void rotate_y(float p_angle);
+	void rotate_z(float p_angle);
 	void translate(const Vector3 &p_offset);
 	void scale(const Vector3 &p_ratio);
-	void global_rotate(const Vector3 &p_normal, float p_radians);
+	void global_rotate(const Vector3 &p_axis, float p_angle);
 	void global_translate(const Vector3 &p_offset);
 
-	ClassDB::bind_method(D_METHOD("rotate", "normal", "radians"), &Spatial::rotate);
-	ClassDB::bind_method(D_METHOD("global_rotate", "normal", "radians"), &Spatial::global_rotate);
-	ClassDB::bind_method(D_METHOD("rotate_x", "radians"), &Spatial::rotate_x);
-	ClassDB::bind_method(D_METHOD("rotate_y", "radians"), &Spatial::rotate_y);
-	ClassDB::bind_method(D_METHOD("rotate_z", "radians"), &Spatial::rotate_z);
-	ClassDB::bind_method(D_METHOD("translate", "offset"), &Spatial::translate);
+	ClassDB::bind_method(D_METHOD("rotate", "axis", "angle"), &Spatial::rotate);
+	ClassDB::bind_method(D_METHOD("global_rotate", "axis", "angle"), &Spatial::global_rotate);
+	ClassDB::bind_method(D_METHOD("global_scale", "scale"), &Spatial::global_scale);
 	ClassDB::bind_method(D_METHOD("global_translate", "offset"), &Spatial::global_translate);
+	ClassDB::bind_method(D_METHOD("rotate_object_local", "axis", "angle"), &Spatial::rotate_object_local);
+	ClassDB::bind_method(D_METHOD("scale_object_local", "scale"), &Spatial::scale_object_local);
+	ClassDB::bind_method(D_METHOD("translate_object_local", "offset"), &Spatial::translate_object_local);
+	ClassDB::bind_method(D_METHOD("rotate_x", "angle"), &Spatial::rotate_x);
+	ClassDB::bind_method(D_METHOD("rotate_y", "angle"), &Spatial::rotate_y);
+	ClassDB::bind_method(D_METHOD("rotate_z", "angle"), &Spatial::rotate_z);
+	ClassDB::bind_method(D_METHOD("translate", "offset"), &Spatial::translate);
 	ClassDB::bind_method(D_METHOD("orthonormalize"), &Spatial::orthonormalize);
 	ClassDB::bind_method(D_METHOD("set_identity"), &Spatial::set_identity);
 
 	ClassDB::bind_method(D_METHOD("look_at", "target", "up"), &Spatial::look_at);
-	ClassDB::bind_method(D_METHOD("look_at_from_pos", "pos", "target", "up"), &Spatial::look_at_from_pos);
+	ClassDB::bind_method(D_METHOD("look_at_from_position", "position", "target", "up"), &Spatial::look_at_from_position);
+
+	ClassDB::bind_method(D_METHOD("to_local", "global_point"), &Spatial::to_local);
+	ClassDB::bind_method(D_METHOD("to_global", "local_point"), &Spatial::to_global);
 
 	BIND_CONSTANT(NOTIFICATION_TRANSFORM_CHANGED);
 	BIND_CONSTANT(NOTIFICATION_ENTER_WORLD);
@@ -769,18 +784,18 @@ void Spatial::_bind_methods() {
 	ADD_PROPERTYNZ(PropertyInfo(Variant::TRANSFORM, "transform", PROPERTY_HINT_NONE, ""), "set_transform", "get_transform");
 	ADD_PROPERTYNZ(PropertyInfo(Variant::TRANSFORM, "global_transform", PROPERTY_HINT_NONE, "", 0), "set_global_transform", "get_global_transform");
 	ADD_PROPERTY(PropertyInfo(Variant::VECTOR3, "translation", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_EDITOR), "set_translation", "get_translation");
-	ADD_PROPERTY(PropertyInfo(Variant::VECTOR3, "rotation_deg", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_EDITOR), "set_rotation_deg", "get_rotation_deg");
+	ADD_PROPERTY(PropertyInfo(Variant::VECTOR3, "rotation_degrees", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_EDITOR), "set_rotation_degrees", "get_rotation_degrees");
 	ADD_PROPERTY(PropertyInfo(Variant::VECTOR3, "rotation", PROPERTY_HINT_NONE, "", 0), "set_rotation", "get_rotation");
 	ADD_PROPERTY(PropertyInfo(Variant::VECTOR3, "scale", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_EDITOR), "set_scale", "get_scale");
 	ADD_GROUP("Visibility", "");
 	ADD_PROPERTYNO(PropertyInfo(Variant::BOOL, "visible"), "set_visible", "is_visible");
-	//ADD_PROPERTY( PropertyInfo(Variant::TRANSFORM,"transform/local"), "set_transform", "get_transform") ;
+	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "gizmo", PROPERTY_HINT_RESOURCE_TYPE, "SpatialGizmo", 0), "set_gizmo", "get_gizmo");
 
 	ADD_SIGNAL(MethodInfo("visibility_changed"));
 }
 
-Spatial::Spatial()
-	: xform_change(this) {
+Spatial::Spatial() :
+		xform_change(this) {
 
 	data.dirty = DIRTY_NONE;
 	data.children_lock = 0;

@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 //
 // This file demonstrates how to initialize EGL in a Windows Store app, using ICoreWindow.
 //
@@ -77,15 +78,14 @@ public:
 	return 0;
 }
 
-App::App()
-	: mWindowClosed(false),
-	  mWindowVisible(true),
-	  mWindowWidth(0),
-	  mWindowHeight(0),
-	  mEglDisplay(EGL_NO_DISPLAY),
-	  mEglContext(EGL_NO_CONTEXT),
-	  mEglSurface(EGL_NO_SURFACE),
-	  number_of_contacts(0) {
+App::App() :
+		mWindowClosed(false),
+		mWindowVisible(true),
+		mWindowWidth(0),
+		mWindowHeight(0),
+		mEglDisplay(EGL_NO_DISPLAY),
+		mEglContext(EGL_NO_CONTEXT),
+		mEglSurface(EGL_NO_SURFACE) {
 }
 
 // The first method called when the IFrameworkView is being created.
@@ -263,55 +263,51 @@ void App::pointer_event(Windows::UI::Core::CoreWindow ^ sender, Windows::UI::Cor
 		screen_touch.instance();
 		screen_touch->set_device(0);
 		screen_touch->set_pressed(p_pressed);
-		screen_touch->set_pos(Vector2(pos.X, pos.Y));
+		screen_touch->set_position(Vector2(pos.X, pos.Y));
 		screen_touch->set_index(_get_finger(point->PointerId));
 
 		last_touch_x[screen_touch->get_index()] = pos.X;
 		last_touch_y[screen_touch->get_index()] = pos.Y;
 
 		os->input_event(screen_touch);
-		if (number_of_contacts > 1)
-			return;
+	} else {
 
-	}; // fallthrought of sorts
+		Ref<InputEventMouseButton> mouse_button;
+		mouse_button.instance();
+		mouse_button->set_device(0);
+		mouse_button->set_pressed(p_pressed);
+		mouse_button->set_button_index(but);
+		mouse_button->set_position(Vector2(pos.X, pos.Y));
+		mouse_button->set_global_position(Vector2(pos.X, pos.Y));
 
-	Ref<InputEventMouseButton> mouse_button;
-	mouse_button.instance();
-	mouse_button->set_device(0);
-	mouse_button->set_pressed(p_pressed);
-	mouse_button->set_button_index(but);
-	mouse_button->set_pos(Vector2(pos.X, pos.Y));
-	mouse_button->set_global_pos(Vector2(pos.X, pos.Y));
-
-	if (p_is_wheel) {
-		if (point->Properties->MouseWheelDelta > 0) {
-			mouse_button->set_button_index(point->Properties->IsHorizontalMouseWheel ? BUTTON_WHEEL_RIGHT : BUTTON_WHEEL_UP);
-		} else if (point->Properties->MouseWheelDelta < 0) {
-			mouse_button->set_button_index(point->Properties->IsHorizontalMouseWheel ? BUTTON_WHEEL_LEFT : BUTTON_WHEEL_DOWN);
+		if (p_is_wheel) {
+			if (point->Properties->MouseWheelDelta > 0) {
+				mouse_button->set_button_index(point->Properties->IsHorizontalMouseWheel ? BUTTON_WHEEL_RIGHT : BUTTON_WHEEL_UP);
+			} else if (point->Properties->MouseWheelDelta < 0) {
+				mouse_button->set_button_index(point->Properties->IsHorizontalMouseWheel ? BUTTON_WHEEL_LEFT : BUTTON_WHEEL_DOWN);
+			}
 		}
-	}
 
-	last_touch_x[31] = pos.X;
-	last_touch_y[31] = pos.Y;
+		last_touch_x[31] = pos.X;
+		last_touch_y[31] = pos.Y;
 
-	os->input_event(mouse_button);
-
-	if (p_is_wheel) {
-		// Send release for mouse wheel
-		mouse_button->set_pressed(false);
 		os->input_event(mouse_button);
+
+		if (p_is_wheel) {
+			// Send release for mouse wheel
+			mouse_button->set_pressed(false);
+			os->input_event(mouse_button);
+		}
 	}
 };
 
 void App::OnPointerPressed(Windows::UI::Core::CoreWindow ^ sender, Windows::UI::Core::PointerEventArgs ^ args) {
 
-	number_of_contacts++;
 	pointer_event(sender, args, true);
 };
 
 void App::OnPointerReleased(Windows::UI::Core::CoreWindow ^ sender, Windows::UI::Core::PointerEventArgs ^ args) {
 
-	number_of_contacts--;
 	pointer_event(sender, args, false);
 };
 
@@ -350,35 +346,33 @@ void App::OnPointerMoved(Windows::UI::Core::CoreWindow ^ sender, Windows::UI::Co
 	Windows::UI::Input::PointerPoint ^ point = args->CurrentPoint;
 	Windows::Foundation::Point pos = _get_pixel_position(window, point->Position, os);
 
-	if (point->IsInContact && _is_touch(point)) {
+	if (_is_touch(point)) {
 
 		Ref<InputEventScreenDrag> screen_drag;
 		screen_drag.instance();
 		screen_drag->set_device(0);
-		screen_drag->set_pos(Vector2(pos.X, pos.Y));
+		screen_drag->set_position(Vector2(pos.X, pos.Y));
 		screen_drag->set_index(_get_finger(point->PointerId));
-		screen_drag->set_relative(Vector2(screen_drag->get_pos().x - last_touch_x[screen_drag->get_index()], screen_drag->get_pos().y - last_touch_y[screen_drag->get_index()]));
+		screen_drag->set_relative(Vector2(screen_drag->get_position().x - last_touch_x[screen_drag->get_index()], screen_drag->get_position().y - last_touch_y[screen_drag->get_index()]));
 
 		os->input_event(screen_drag);
-		if (number_of_contacts > 1)
+	} else {
+
+		// In case the mouse grabbed, MouseMoved will handle this
+		if (os->get_mouse_mode() == OS::MouseMode::MOUSE_MODE_CAPTURED)
 			return;
 
-	}; // fallthrought of sorts
+		Ref<InputEventMouseMotion> mouse_motion;
+		mouse_motion.instance();
+		mouse_motion->set_device(0);
+		mouse_motion->set_position(Vector2(pos.X, pos.Y));
+		mouse_motion->set_global_position(Vector2(pos.X, pos.Y));
+		mouse_motion->set_relative(Vector2(pos.X - last_touch_x[31], pos.Y - last_touch_y[31]));
 
-	// In case the mouse grabbed, MouseMoved will handle this
-	if (os->get_mouse_mode() == OS::MouseMode::MOUSE_MODE_CAPTURED)
-		return;
+		last_mouse_pos = pos;
 
-	Ref<InputEventMouseMotion> mouse_motion;
-	mouse_motion.instance();
-	mouse_motion->set_device(0);
-	mouse_motion->set_pos(Vector2(pos.X, pos.Y));
-	mouse_motion->set_global_pos(Vector2(pos.X, pos.Y));
-	mouse_motion->set_relative(Vector2(pos.X - last_touch_x[31], pos.Y - last_touch_y[31]));
-
-	last_mouse_pos = pos;
-
-	os->input_event(mouse_motion);
+		os->input_event(mouse_motion);
+	}
 }
 
 void App::OnMouseMoved(MouseDevice ^ mouse_device, MouseEventArgs ^ args) {
@@ -394,8 +388,8 @@ void App::OnMouseMoved(MouseDevice ^ mouse_device, MouseEventArgs ^ args) {
 	Ref<InputEventMouseMotion> mouse_motion;
 	mouse_motion.instance();
 	mouse_motion->set_device(0);
-	mouse_motion->set_pos(Vector2(pos.X, pos.Y));
-	mouse_motion->set_global_pos(Vector2(pos.X, pos.Y));
+	mouse_motion->set_position(Vector2(pos.X, pos.Y));
+	mouse_motion->set_global_position(Vector2(pos.X, pos.Y));
 	mouse_motion->set_relative(Vector2(args->MouseDelta.X, args->MouseDelta.Y));
 
 	last_mouse_pos = pos;
@@ -512,7 +506,7 @@ void App::UpdateWindowSize(Size size) {
 
 char **App::get_command_line(unsigned int *out_argc) {
 
-	static char *fail_cl[] = { "-path", "game", NULL };
+	static char *fail_cl[] = { "--path", "game", NULL };
 	*out_argc = 2;
 
 	FILE *f = _wfopen(L"__cl__.cl", L"rb");

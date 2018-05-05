@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,17 +27,18 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "editor_data.h"
 
 #include "editor_node.h"
 #include "editor_settings.h"
-#include "global_config.h"
 #include "io/resource_loader.h"
 #include "os/dir_access.h"
 #include "os/file_access.h"
+#include "project_settings.h"
 #include "scene/resources/packed_scene.h"
 
-void EditorHistory::_cleanup_history() {
+void EditorHistory::cleanup_history() {
 
 	for (int i = 0; i < history.size(); i++) {
 
@@ -47,8 +48,14 @@ void EditorHistory::_cleanup_history() {
 			if (!history[i].path[j].ref.is_null())
 				continue;
 
-			if (ObjectDB::get_instance(history[i].path[j].object))
-				continue; //has isntance, try next
+			Object *obj = ObjectDB::get_instance(history[i].path[j].object);
+			if (obj) {
+				Node *n = Object::cast_to<Node>(obj);
+				if (n && n->is_inside_tree())
+					continue;
+				if (!n) // Possibly still alive
+					continue;
+			}
 
 			if (j <= history[i].level) {
 				//before or equal level, complete fail
@@ -75,7 +82,7 @@ void EditorHistory::_add_object(ObjectID p_object, const String &p_property, int
 
 	Object *obj = ObjectDB::get_instance(p_object);
 	ERR_FAIL_COND(!obj);
-	Reference *r = obj->cast_to<Reference>();
+	Reference *r = Object::cast_to<Reference>(obj);
 	Obj o;
 	if (r)
 		o.ref = REF(r);
@@ -141,7 +148,7 @@ ObjectID EditorHistory::get_history_obj(int p_obj) const {
 	return history[p_obj].path[history[p_obj].level].object;
 }
 
-bool EditorHistory::is_at_begining() const {
+bool EditorHistory::is_at_beginning() const {
 	return current <= 0;
 }
 bool EditorHistory::is_at_end() const {
@@ -151,7 +158,7 @@ bool EditorHistory::is_at_end() const {
 
 bool EditorHistory::next() {
 
-	_cleanup_history();
+	cleanup_history();
 
 	if ((current + 1) < history.size())
 		current++;
@@ -163,7 +170,7 @@ bool EditorHistory::next() {
 
 bool EditorHistory::previous() {
 
-	_cleanup_history();
+	cleanup_history();
 
 	if (current > 0)
 		current--;
@@ -183,7 +190,7 @@ ObjectID EditorHistory::get_current() {
 	if (!obj)
 		return 0;
 
-	return obj->get_instance_ID();
+	return obj->get_instance_id();
 }
 
 int EditorHistory::get_path_size() const {
@@ -208,7 +215,7 @@ ObjectID EditorHistory::get_path_object(int p_index) const {
 	if (!obj)
 		return 0;
 
-	return obj->get_instance_ID();
+	return obj->get_instance_id();
 }
 
 String EditorHistory::get_path_property(int p_index) const {
@@ -353,6 +360,7 @@ void EditorData::notify_edited_scene_changed() {
 	for (int i = 0; i < editor_plugins.size(); i++) {
 
 		editor_plugins[i]->edited_scene_changed();
+		editor_plugins[i]->notify_scene_changed(get_edited_scene_root());
 	}
 }
 
@@ -444,6 +452,31 @@ void EditorData::add_custom_type(const String &p_type, const String &p_inherits,
 	custom_types[p_inherits].push_back(ct);
 }
 
+Object *EditorData::instance_custom_type(const String &p_type, const String &p_inherits) {
+
+	if (get_custom_types().has(p_inherits)) {
+
+		for (int i = 0; i < get_custom_types()[p_inherits].size(); i++) {
+			if (get_custom_types()[p_inherits][i].name == p_type) {
+				Ref<Texture> icon = get_custom_types()[p_inherits][i].icon;
+				Ref<Script> script = get_custom_types()[p_inherits][i].script;
+
+				Object *ob = ClassDB::instance(p_inherits);
+				ERR_FAIL_COND_V(!ob, NULL);
+				if (ob->is_class("Node")) {
+					ob->call("set_name", p_type);
+				}
+				ob->set_script(script.get_ref_ptr());
+				if (icon.is_valid())
+					ob->set_meta("_editor_icon", icon);
+				return ob;
+			}
+		}
+	}
+
+	return NULL;
+}
+
 void EditorData::remove_custom_type(const String &p_type) {
 
 	for (Map<String, Vector<CustomType> >::Element *E = custom_types.front(); E; E = E->next()) {
@@ -488,8 +521,14 @@ void EditorData::move_edited_scene_index(int p_idx, int p_to_idx) {
 }
 void EditorData::remove_scene(int p_idx) {
 	ERR_FAIL_INDEX(p_idx, edited_scene.size());
-	if (edited_scene[p_idx].root)
+	if (edited_scene[p_idx].root) {
+
+		for (int i = 0; i < editor_plugins.size(); i++) {
+			editor_plugins[i]->notify_scene_closed(edited_scene[p_idx].root->get_filename());
+		}
+
 		memdelete(edited_scene[p_idx].root);
+	}
 
 	if (current_edited_scene > p_idx)
 		current_edited_scene--;
@@ -549,18 +588,16 @@ bool EditorData::check_and_update_scene(int p_idx) {
 
 	bool must_reload = _find_updated_instances(edited_scene[p_idx].root, edited_scene[p_idx].root, checked_scenes);
 
-	print_line("MUST RELOAD? " + itos(must_reload));
-
 	if (must_reload) {
 		Ref<PackedScene> pscene;
 		pscene.instance();
 
 		EditorProgress ep("update_scene", TTR("Updating Scene"), 2);
-		ep.step(TTR("Storing local changes.."), 0);
+		ep.step(TTR("Storing local changes..."), 0);
 		//pack first, so it stores diffs to previous version of saved scene
 		Error err = pscene->pack(edited_scene[p_idx].root);
 		ERR_FAIL_COND_V(err != OK, false);
-		ep.step(TTR("Updating scene.."), 1);
+		ep.step(TTR("Updating scene..."), 1);
 		Node *new_scene = pscene->instance(PackedScene::GEN_EDIT_STATE_MAIN);
 		ERR_FAIL_COND_V(!new_scene, false);
 
@@ -615,13 +652,24 @@ int EditorData::get_edited_scene_count() const {
 	return edited_scene.size();
 }
 
-void EditorData::set_edited_scene_version(uint64_t version, int scene_idx) {
+Vector<EditorData::EditedScene> EditorData::get_edited_scenes() const {
+
+	Vector<EditedScene> out_edited_scenes_list = Vector<EditedScene>();
+
+	for (int i = 0; i < edited_scene.size(); i++) {
+		out_edited_scenes_list.push_back(edited_scene[i]);
+	}
+
+	return out_edited_scenes_list;
+}
+
+void EditorData::set_edited_scene_version(uint64_t version, int p_scene_idx) {
 	ERR_FAIL_INDEX(current_edited_scene, edited_scene.size());
-	if (scene_idx < 0) {
+	if (p_scene_idx < 0) {
 		edited_scene[current_edited_scene].version = version;
 	} else {
-		ERR_FAIL_INDEX(scene_idx, edited_scene.size());
-		edited_scene[scene_idx].version = version;
+		ERR_FAIL_INDEX(p_scene_idx, edited_scene.size());
+		edited_scene[p_scene_idx].version = version;
 	}
 }
 
@@ -672,10 +720,24 @@ Ref<Script> EditorData::get_scene_root_script(int p_idx) const {
 String EditorData::get_scene_title(int p_idx) const {
 	ERR_FAIL_INDEX_V(p_idx, edited_scene.size(), String());
 	if (!edited_scene[p_idx].root)
-		return "[empty]";
+		return TTR("[empty]");
 	if (edited_scene[p_idx].root->get_filename() == "")
-		return "[unsaved]";
-	return edited_scene[p_idx].root->get_filename().get_file();
+		return TTR("[unsaved]");
+	bool show_ext = EDITOR_DEF("interface/scene_tabs/show_extension", false);
+	String name = edited_scene[p_idx].root->get_filename().get_file();
+	if (!show_ext) {
+		name = name.get_basename();
+	}
+	return name;
+}
+
+void EditorData::set_scene_path(int p_idx, const String &p_path) {
+
+	ERR_FAIL_INDEX(p_idx, edited_scene.size());
+
+	if (!edited_scene[p_idx].root)
+		return;
+	edited_scene[p_idx].root->set_filename(p_path);
 }
 
 String EditorData::get_scene_path(int p_idx) const {
@@ -790,7 +852,7 @@ void EditorSelection::add_node(Node *p_node) {
 	}
 	selection[p_node] = meta;
 
-	p_node->connect("tree_exited", this, "_node_removed", varray(p_node), CONNECT_ONESHOT);
+	p_node->connect("tree_exiting", this, "_node_removed", varray(p_node), CONNECT_ONESHOT);
 
 	//emit_signal("selection_changed");
 }
@@ -808,7 +870,7 @@ void EditorSelection::remove_node(Node *p_node) {
 	if (meta)
 		memdelete(meta);
 	selection.erase(p_node);
-	p_node->disconnect("tree_exited", this, "_node_removed");
+	p_node->disconnect("tree_exiting", this, "_node_removed");
 	//emit_signal("selection_changed");
 }
 bool EditorSelection::is_selected(Node *p_node) const {
@@ -844,10 +906,11 @@ void EditorSelection::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("_node_removed"), &EditorSelection::_node_removed);
 	ClassDB::bind_method(D_METHOD("clear"), &EditorSelection::clear);
-	ClassDB::bind_method(D_METHOD("add_node", "node:Node"), &EditorSelection::add_node);
-	ClassDB::bind_method(D_METHOD("remove_node", "node:Node"), &EditorSelection::remove_node);
+	ClassDB::bind_method(D_METHOD("add_node", "node"), &EditorSelection::add_node);
+	ClassDB::bind_method(D_METHOD("remove_node", "node"), &EditorSelection::remove_node);
 	ClassDB::bind_method(D_METHOD("get_selected_nodes"), &EditorSelection::_get_selected_nodes);
 	ClassDB::bind_method(D_METHOD("get_transformable_selected_nodes"), &EditorSelection::_get_transformable_selected_nodes);
+	ClassDB::bind_method(D_METHOD("_emit_change"), &EditorSelection::_emit_change);
 	ADD_SIGNAL(MethodInfo("selection_changed"));
 }
 
@@ -890,8 +953,16 @@ void EditorSelection::update() {
 
 	if (!changed)
 		return;
-	emit_signal("selection_changed");
 	changed = false;
+	if (!emitted) {
+		emitted = true;
+		call_deferred("_emit_change");
+	}
+}
+
+void EditorSelection::_emit_change() {
+	emit_signal("selection_changed");
+	emitted = false;
 }
 
 List<Node *> &EditorSelection::get_selected_node_list() {
@@ -915,6 +986,7 @@ void EditorSelection::clear() {
 }
 EditorSelection::EditorSelection() {
 
+	emitted = false;
 	changed = false;
 	nl_changed = false;
 }

@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "resource_importer_csv_translation.h"
 
 #include "compressed_translation.h"
@@ -49,7 +50,7 @@ void ResourceImporterCSVTranslation::get_recognized_extensions(List<String> *p_e
 }
 
 String ResourceImporterCSVTranslation::get_save_extension() const {
-	return ""; //does not save a single resoure
+	return ""; //does not save a single resource
 }
 
 String ResourceImporterCSVTranslation::get_resource_type() const {
@@ -73,19 +74,26 @@ String ResourceImporterCSVTranslation::get_preset_name(int p_idx) const {
 void ResourceImporterCSVTranslation::get_import_options(List<ImportOption> *r_options, int p_preset) const {
 
 	r_options->push_back(ImportOption(PropertyInfo(Variant::BOOL, "compress"), true));
+	r_options->push_back(ImportOption(PropertyInfo(Variant::INT, "delimiter", PROPERTY_HINT_ENUM, "Comma,Semicolon,Tab"), 0));
 }
 
 Error ResourceImporterCSVTranslation::import(const String &p_source_file, const String &p_save_path, const Map<StringName, Variant> &p_options, List<String> *r_platform_variants, List<String> *r_gen_files) {
 
 	bool compress = p_options["compress"];
+
+	String delimiter;
+	switch ((int)p_options["delimiter"]) {
+		case 0: delimiter = ","; break;
+		case 1: delimiter = ";"; break;
+		case 2: delimiter = "\t"; break;
+	}
+
 	FileAccessRef f = FileAccess::open(p_source_file, FileAccess::READ);
 
 	ERR_FAIL_COND_V(!f, ERR_INVALID_PARAMETER);
 
-	Vector<String> line = f->get_csv_line();
-	if (line.size() <= 1) {
-		return ERR_PARSE_ERROR;
-	}
+	Vector<String> line = f->get_csv_line(delimiter);
+	ERR_FAIL_COND_V(line.size() <= 1, ERR_PARSE_ERROR);
 
 	Vector<String> locales;
 	Vector<Ref<Translation> > translations;
@@ -93,9 +101,8 @@ Error ResourceImporterCSVTranslation::import(const String &p_source_file, const 
 	for (int i = 1; i < line.size(); i++) {
 
 		String locale = line[i];
-		if (!TranslationServer::is_locale_valid(locale)) {
-			return ERR_PARSE_ERROR;
-		}
+		ERR_EXPLAIN("Error importing CSV translation: '" + locale + "' is not a valid locale");
+		ERR_FAIL_COND_V(!TranslationServer::is_locale_valid(locale), ERR_PARSE_ERROR);
 
 		locales.push_back(locale);
 		Ref<Translation> translation;
@@ -104,7 +111,7 @@ Error ResourceImporterCSVTranslation::import(const String &p_source_file, const 
 		translations.push_back(translation);
 	}
 
-	line = f->get_csv_line();
+	line = f->get_csv_line(delimiter);
 
 	while (line.size() == locales.size() + 1) {
 
@@ -116,7 +123,7 @@ Error ResourceImporterCSVTranslation::import(const String &p_source_file, const 
 			}
 		}
 
-		line = f->get_csv_line();
+		line = f->get_csv_line(delimiter);
 	}
 
 	for (int i = 0; i < translations.size(); i++) {
@@ -128,7 +135,7 @@ Error ResourceImporterCSVTranslation::import(const String &p_source_file, const 
 			xlt = cxl;
 		}
 
-		String save_path = p_source_file.get_basename() + "." + translations[i]->get_locale() + ".xl";
+		String save_path = p_source_file.get_basename() + "." + translations[i]->get_locale() + ".translation";
 
 		ResourceSaver::save(save_path, xlt);
 		if (r_gen_files) {

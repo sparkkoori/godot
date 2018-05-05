@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef EDITOR_HELP_H
 #define EDITOR_HELP_H
 
@@ -52,6 +53,32 @@ class EditorHelpSearch : public ConfirmationDialog {
 	LineEdit *search_box;
 	Tree *search_options;
 	String base_type;
+
+	class IncrementalSearch : public Reference {
+		String term;
+		TreeItem *root;
+
+		EditorHelpSearch *search;
+		Tree *search_options;
+
+		DocData *doc;
+		Ref<Texture> def_icon;
+
+		int phase;
+		Map<String, DocData::ClassDoc>::Element *iterator;
+
+		void phase1(Map<String, DocData::ClassDoc>::Element *E);
+		void phase2(Map<String, DocData::ClassDoc>::Element *E);
+		bool slice();
+
+	public:
+		IncrementalSearch(EditorHelpSearch *p_search, Tree *p_search_options, const String &p_term);
+
+		bool empty() const;
+		bool work(uint64_t slot = 1000000 / 10);
+	};
+
+	Ref<IncrementalSearch> search;
 
 	void _update_search();
 
@@ -118,11 +145,14 @@ class EditorHelp : public VBoxContainer {
 
 	String edited_class;
 
+	Vector<Pair<String, int> > section_line;
 	Map<String, int> method_line;
 	Map<String, int> signal_line;
 	Map<String, int> property_line;
 	Map<String, int> theme_property_line;
 	Map<String, int> constant_line;
+	Map<String, int> enum_line;
+	Map<String, Map<String, int> > enum_values_line;
 	int description_line;
 
 	RichTextLabel *class_desc;
@@ -134,15 +164,26 @@ class EditorHelp : public VBoxContainer {
 
 	String base_path;
 
+	Color title_color;
+	Color text_color;
+	Color headline_color;
+	Color base_type_color;
+	Color type_color;
+	Color comment_color;
+	Color symbol_color;
+	Color value_color;
+	Color qualifier_color;
+
+	void _init_colors();
 	void _help_callback(const String &p_topic);
 
-	void _add_text(const String &p_text);
+	void _add_text(const String &p_bbcode);
 	bool scroll_locked;
 
 	//void _button_pressed(int p_idx);
-	void _add_type(const String &p_type);
+	void _add_type(const String &p_type, const String &p_enum = String());
+	void _add_method(const DocData::MethodDoc &p_method, bool p_overview = true);
 
-	void _scroll_changed(double p_scroll);
 	void _class_list_select(const String &p_select);
 	void _class_desc_select(const String &p_select);
 	void _class_desc_input(const Ref<InputEvent> &p_input);
@@ -168,6 +209,9 @@ public:
 	void go_to_help(const String &p_help);
 	void go_to_class(const String &p_class, int p_scroll = 0);
 
+	Vector<Pair<String, int> > get_sections();
+	void scroll_to_section(int p_section_index);
+
 	void popup_search();
 	void search_again();
 
@@ -188,7 +232,7 @@ class EditorHelpBit : public Panel {
 
 	RichTextLabel *rich_text;
 	void _go_to_help(String p_what);
-	void _meta_clicked(String p_what);
+	void _meta_clicked(String p_select);
 
 protected:
 	static void _bind_methods();

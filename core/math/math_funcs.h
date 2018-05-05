@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef MATH_FUNCS_H
 #define MATH_FUNCS_H
 
@@ -39,6 +40,7 @@
 #include <math.h>
 
 #define Math_PI 3.14159265358979323846
+#define Math_TAU 6.28318530717958647692
 #define Math_SQRT12 0.7071067811865475244008443621048490
 #define Math_LN2 0.693147180559945309417
 #define Math_INF INFINITY
@@ -104,12 +106,57 @@ public:
 	static _ALWAYS_INLINE_ double exp(double p_x) { return ::exp(p_x); }
 	static _ALWAYS_INLINE_ float exp(float p_x) { return ::expf(p_x); }
 
-	static _ALWAYS_INLINE_ bool is_nan(double p_val) { return (p_val != p_val); }
-	static _ALWAYS_INLINE_ bool is_nan(float p_val) { return (p_val != p_val); }
+	static _ALWAYS_INLINE_ bool is_nan(double p_val) {
+#ifdef _MSC_VER
+		return _isnan(p_val);
+#elif defined(__GNUC__) && __GNUC__ < 6
+		union {
+			uint64_t u;
+			double f;
+		} ieee754;
+		ieee754.f = p_val;
+		// (unsigned)(0x7ff0000000000001 >> 32) : 0x7ff00000
+		return ((((unsigned)(ieee754.u >> 32) & 0x7fffffff) + ((unsigned)ieee754.u != 0)) > 0x7ff00000);
+#else
+		return isnan(p_val);
+#endif
+	}
+
+	static _ALWAYS_INLINE_ bool is_nan(float p_val) {
+#ifdef _MSC_VER
+		return _isnan(p_val);
+#elif defined(__GNUC__) && __GNUC__ < 6
+		union {
+			uint32_t u;
+			float f;
+		} ieee754;
+		ieee754.f = p_val;
+		// -----------------------------------
+		// (single-precision floating-point)
+		// NaN : s111 1111 1xxx xxxx xxxx xxxx xxxx xxxx
+		//     : (> 0x7f800000)
+		// where,
+		//   s : sign
+		//   x : non-zero number
+		// -----------------------------------
+		return ((ieee754.u & 0x7fffffff) > 0x7f800000);
+#else
+		return isnan(p_val);
+#endif
+	}
 
 	static _ALWAYS_INLINE_ bool is_inf(double p_val) {
 #ifdef _MSC_VER
 		return !_finite(p_val);
+// use an inline implementation of isinf as a workaround for problematic libstdc++ versions from gcc 5.x era
+#elif defined(__GNUC__) && __GNUC__ < 6
+		union {
+			uint64_t u;
+			double f;
+		} ieee754;
+		ieee754.f = p_val;
+		return ((unsigned)(ieee754.u >> 32) & 0x7fffffff) == 0x7ff00000 &&
+			   ((unsigned)ieee754.u == 0);
 #else
 		return isinf(p_val);
 #endif
@@ -118,6 +165,14 @@ public:
 	static _ALWAYS_INLINE_ bool is_inf(float p_val) {
 #ifdef _MSC_VER
 		return !_finite(p_val);
+// use an inline implementation of isinf as a workaround for problematic libstdc++ versions from gcc 5.x era
+#elif defined(__GNUC__) && __GNUC__ < 6
+		union {
+			uint32_t u;
+			float f;
+		} ieee754;
+		ieee754.f = p_val;
+		return (ieee754.u & 0x7fffffff) == 0x7f800000;
 #else
 		return isinf(p_val);
 #endif
@@ -136,8 +191,14 @@ public:
 	static _ALWAYS_INLINE_ double rad2deg(double p_y) { return p_y * 180.0 / Math_PI; }
 	static _ALWAYS_INLINE_ float rad2deg(float p_y) { return p_y * 180.0 / Math_PI; }
 
-	static _ALWAYS_INLINE_ double lerp(double a, double b, double c) { return a + (b - a) * c; }
-	static _ALWAYS_INLINE_ float lerp(float a, float b, float c) { return a + (b - a) * c; }
+	static _ALWAYS_INLINE_ double lerp(double p_from, double p_to, double p_weight) { return p_from + (p_to - p_from) * p_weight; }
+	static _ALWAYS_INLINE_ float lerp(float p_from, float p_to, float p_weight) { return p_from + (p_to - p_from) * p_weight; }
+
+	static _ALWAYS_INLINE_ double inverse_lerp(double p_from, double p_to, double p_value) { return (p_value - p_from) / (p_to - p_from); }
+	static _ALWAYS_INLINE_ float inverse_lerp(float p_from, float p_to, float p_value) { return (p_value - p_from) / (p_to - p_from); }
+
+	static _ALWAYS_INLINE_ double range_lerp(double p_value, double p_istart, double p_istop, double p_ostart, double p_ostop) { return Math::lerp(p_ostart, p_ostop, Math::inverse_lerp(p_istart, p_istop, p_value)); }
+	static _ALWAYS_INLINE_ float range_lerp(float p_value, float p_istart, float p_istop, float p_ostart, float p_ostop) { return Math::lerp(p_ostart, p_ostop, Math::inverse_lerp(p_istart, p_istop, p_value)); }
 
 	static _ALWAYS_INLINE_ double linear2db(double p_linear) { return Math::log(p_linear) * 8.6858896380650365530225783783321; }
 	static _ALWAYS_INLINE_ float linear2db(float p_linear) { return Math::log(p_linear) * 8.6858896380650365530225783783321; }
@@ -147,6 +208,19 @@ public:
 
 	static _ALWAYS_INLINE_ double round(double p_val) { return (p_val >= 0) ? Math::floor(p_val + 0.5) : -Math::floor(-p_val + 0.5); }
 	static _ALWAYS_INLINE_ float round(float p_val) { return (p_val >= 0) ? Math::floor(p_val + 0.5) : -Math::floor(-p_val + 0.5); }
+
+	static _ALWAYS_INLINE_ int wrapi(int value, int min, int max) {
+		int rng = max - min;
+		return min + ((((value - min) % rng) + rng) % rng);
+	}
+	static _ALWAYS_INLINE_ double wrapf(double value, double min, double max) {
+		double rng = max - min;
+		return value - (rng * Math::floor((value - min) / rng));
+	}
+	static _ALWAYS_INLINE_ float wrapf(float value, float min, float max) {
+		float rng = max - min;
+		return value - (rng * Math::floor((value - min) / rng));
+	}
 
 	// double only, as these functions are mainly used by the editor and not performance-critical,
 	static double ease(double p_x, double p_c);
@@ -209,7 +283,7 @@ public:
 
 #elif defined(_MSC_VER) && _MSC_VER < 1800
 		__asm fld a __asm fistp b
-/*#elif defined( __GNUC__ ) && ( defined( __i386__ ) || defined( __x86_64__ ) )
+		/*#elif defined( __GNUC__ ) && ( defined( __i386__ ) || defined( __x86_64__ ) )
 		// use AT&T inline assembly style, document that
 		// we use memory as output (=m) and input (m)
 		__asm__ __volatile__ (
@@ -327,6 +401,23 @@ public:
 		}
 
 		return hf;
+	}
+
+	static _ALWAYS_INLINE_ float snap_scalar(float p_offset, float p_step, float p_target) {
+		return p_step != 0 ? Math::stepify(p_target - p_offset, p_step) + p_offset : p_target;
+	}
+
+	static _ALWAYS_INLINE_ float snap_scalar_seperation(float p_offset, float p_step, float p_target, float p_separation) {
+		if (p_step != 0) {
+			float a = Math::stepify(p_target - p_offset, p_step + p_separation) + p_offset;
+			float b = a;
+			if (p_target >= 0)
+				b -= p_separation;
+			else
+				b += p_step;
+			return (Math::abs(p_target - a) < Math::abs(p_target - b)) ? a : b;
+		}
+		return p_target;
 	}
 };
 

@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include <UnicodeChar.h>
 
 #include "haiku_direct_window.h"
@@ -34,8 +35,8 @@
 #include "main/main.h"
 #include "os/keyboard.h"
 
-HaikuDirectWindow::HaikuDirectWindow(BRect p_frame)
-	: BDirectWindow(p_frame, "Godot", B_TITLED_WINDOW, B_QUIT_ON_WINDOW_CLOSE) {
+HaikuDirectWindow::HaikuDirectWindow(BRect p_frame) :
+		BDirectWindow(p_frame, "Godot", B_TITLED_WINDOW, B_QUIT_ON_WINDOW_CLOSE) {
 	last_mouse_pos_valid = false;
 	last_buttons_state = 0;
 	last_button_mask = 0;
@@ -157,8 +158,8 @@ void HaikuDirectWindow::HandleMouseButton(BMessage *message) {
 
 	mouse_event.mouse_button.mod = GetKeyModifierState(modifiers);
 	mouse_event->get_button_mask() = GetMouseButtonState(buttons);
-	mouse_event->get_pos().x = where.x;
-	mouse_event->get_pos().y = where.y;
+	mouse_event->get_position().x = where.x;
+	mouse_event->get_position().y = where.y;
 	mouse_event.mouse_button.global_x = where.x;
 	mouse_event.mouse_button.global_y = where.y;
 
@@ -242,8 +243,8 @@ void HaikuDirectWindow::HandleMouseWheelChanged(BMessage *message) {
 	mouse_event->get_button_index() = wheel_delta_y < 0 ? 4 : 5;
 	mouse_event.mouse_button.mod = GetKeyModifierState(last_key_modifier_state);
 	mouse_event->get_button_mask() = last_button_mask;
-	mouse_event->get_pos().x = last_mouse_position.x;
-	mouse_event->get_pos().y = last_mouse_position.y;
+	mouse_event->get_position().x = last_mouse_position.x;
+	mouse_event->get_position().y = last_mouse_position.y;
 	mouse_event.mouse_button.global_x = last_mouse_position.x;
 	mouse_event.mouse_button.global_y = last_mouse_position.y;
 

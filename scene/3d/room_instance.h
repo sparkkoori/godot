@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef ROOM_INSTANCE_H
 #define ROOM_INSTANCE_H
 
@@ -43,6 +44,9 @@
    c) "dynamic" Instances are assigned to the rooms their AABB touch
 
 */
+
+// FIXME: this will be removed, left for reference
+#if 0
 
 class Room : public VisualInstance {
 
@@ -68,7 +72,7 @@ public:
 		NOTIFICATION_AREA_CHANGED = 60
 	};
 
-	virtual Rect3 get_aabb() const;
+	virtual AABB get_aabb() const;
 	virtual PoolVector<Face3> get_faces(uint32_t p_usage_flags) const;
 
 	void set_room(const Ref<RoomBounds> &p_room);
@@ -77,5 +81,5 @@ public:
 	Room();
 	~Room();
 };
-
+#endif
 #endif // ROOM_INSTANCE_H

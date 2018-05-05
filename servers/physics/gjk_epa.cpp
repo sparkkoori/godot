@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "gjk_epa.h"
 
 /* Disabling formatting for thirdparty code snippet */
@@ -410,8 +411,8 @@ struct	GJK
 			if(l>GJK_SIMPLEX3_EPS)
 			{
 				real_t	mindist=-1;
-				real_t	subw[2];
-				U			subm;
+				real_t	subw[2] = { 0 , 0};
+				U 		subm = 0;
 				for(U i=0;i<3;++i)
 				{
 					if(vec3_dot(*vt[i],vec3_cross(dl[i],n))>0)
@@ -458,7 +459,7 @@ struct	GJK
 			{
 				real_t	mindist=-1;
 				real_t	subw[3];
-				U			subm;
+				U		subm=0;
 				for(U i=0;i<3;++i)
 				{
 					const U			j=imd3[i];

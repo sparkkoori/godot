@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,6 +27,7 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "physics_2d_server_wrap_mt.h"
 
 #include "os/os.h"
@@ -51,7 +52,7 @@ void Physics2DServerWrapMT::_thread_callback(void *_instance) {
 
 void Physics2DServerWrapMT::thread_loop() {
 
-	server_thread = Thread::get_caller_ID();
+	server_thread = Thread::get_caller_id();
 
 	OS::get_singleton()->make_rendering_thread();
 
@@ -109,16 +110,13 @@ void Physics2DServerWrapMT::init() {
 	if (create_thread) {
 
 		step_sem = Semaphore::create();
-		print_line("CREATING PHYSICS 2D THREAD");
 		//OS::get_singleton()->release_rendering_thread();
 		if (create_thread) {
 			thread = Thread::create(_thread_callback, this);
-			print_line("STARTING PHYISICS 2D THREAD");
 		}
 		while (!step_thread_up) {
 			OS::get_singleton()->delay_usec(1000);
 		}
-		print_line("DONE PHYSICS 2D THREAD");
 	} else {
 
 		physics_2d_server->init();
@@ -133,25 +131,29 @@ void Physics2DServerWrapMT::finish() {
 		Thread::wait_to_finish(thread);
 		memdelete(thread);
 
-		/*
-		shape_free_cached_ids();
-		area_free_cached_ids();
-		body_free_cached_ids();
-		pin_joint_free_cached_ids();
-		groove_joint_free_cached_ids();
-		damped_string_free_cached_ids();
-*/
 		thread = NULL;
 	} else {
 		physics_2d_server->finish();
 	}
 
+	line_shape_free_cached_ids();
+	ray_shape_free_cached_ids();
+	segment_shape_free_cached_ids();
+	circle_shape_free_cached_ids();
+	rectangle_shape_free_cached_ids();
+	convex_polygon_shape_free_cached_ids();
+	concave_polygon_shape_free_cached_ids();
+
+	space_free_cached_ids();
+	area_free_cached_ids();
+	body_free_cached_ids();
+
 	if (step_sem)
 		memdelete(step_sem);
 }
 
-Physics2DServerWrapMT::Physics2DServerWrapMT(Physics2DServer *p_contained, bool p_create_thread)
-	: command_queue(p_create_thread) {
+Physics2DServerWrapMT::Physics2DServerWrapMT(Physics2DServer *p_contained, bool p_create_thread) :
+		command_queue(p_create_thread) {
 
 	physics_2d_server = p_contained;
 	create_thread = p_create_thread;
@@ -161,20 +163,15 @@ Physics2DServerWrapMT::Physics2DServerWrapMT(Physics2DServer *p_contained, bool 
 	step_thread_up = false;
 	alloc_mutex = Mutex::create();
 
-	shape_pool_max_size = GLOBAL_GET("memory/multithread/thread_rid_pool_prealloc");
-	area_pool_max_size = GLOBAL_GET("memory/multithread/thread_rid_pool_prealloc");
-	body_pool_max_size = GLOBAL_GET("memory/multithread/thread_rid_pool_prealloc");
-	pin_joint_pool_max_size = GLOBAL_GET("memory/multithread/thread_rid_pool_prealloc");
-	groove_joint_pool_max_size = GLOBAL_GET("memory/multithread/thread_rid_pool_prealloc");
-	damped_spring_joint_pool_max_size = GLOBAL_GET("memory/multithread/thread_rid_pool_prealloc");
+	pool_max_size = GLOBAL_GET("memory/limits/multithreaded_server/rid_pool_prealloc");
 
 	if (!p_create_thread) {
-		server_thread = Thread::get_caller_ID();
+		server_thread = Thread::get_caller_id();
 	} else {
 		server_thread = 0;
 	}
 
-	main_thread = Thread::get_caller_ID();
+	main_thread = Thread::get_caller_id();
 	first_frame = true;
 }
 

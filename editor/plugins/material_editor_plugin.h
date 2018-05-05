@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,8 +27,14 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef MATERIAL_EDITOR_PLUGIN_H
 #define MATERIAL_EDITOR_PLUGIN_H
+
+#include "editor/property_editor.h"
+// FIXME: Disabled as (according to reduz) users were complaining that it gets in the way
+// Waiting for PropertyEditor rewrite (planned for 3.1) to be refactored.
+#if 0
 
 #include "editor/editor_node.h"
 #include "editor/editor_plugin.h"
@@ -37,7 +43,6 @@
 #include "scene/3d/mesh_instance.h"
 #include "scene/resources/material.h"
 
-#if 0
 class MaterialEditor : public Control {
 
 	GDCLASS(MaterialEditor, Control);
@@ -97,5 +102,30 @@ public:
 
 };
 
-#endif // MATERIAL_EDITOR_PLUGIN_H
 #endif
+
+class SpatialMaterialConversionPlugin : public EditorResourceConversionPlugin {
+	GDCLASS(SpatialMaterialConversionPlugin, EditorResourceConversionPlugin)
+public:
+	virtual String converts_to() const;
+	virtual bool handles(const Ref<Resource> &p_resource) const;
+	virtual Ref<Resource> convert(const Ref<Resource> &p_resource);
+};
+
+class ParticlesMaterialConversionPlugin : public EditorResourceConversionPlugin {
+	GDCLASS(ParticlesMaterialConversionPlugin, EditorResourceConversionPlugin)
+public:
+	virtual String converts_to() const;
+	virtual bool handles(const Ref<Resource> &p_resource) const;
+	virtual Ref<Resource> convert(const Ref<Resource> &p_resource);
+};
+
+class CanvasItemMaterialConversionPlugin : public EditorResourceConversionPlugin {
+	GDCLASS(CanvasItemMaterialConversionPlugin, EditorResourceConversionPlugin)
+public:
+	virtual String converts_to() const;
+	virtual bool handles(const Ref<Resource> &p_resource) const;
+	virtual Ref<Resource> convert(const Ref<Resource> &p_resource);
+};
+
+#endif // MATERIAL_EDITOR_PLUGIN_H

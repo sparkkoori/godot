@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,7 +27,10 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "stream_peer_ssl.h"
+#include "os/file_access.h"
+#include "project_settings.h"
 
 StreamPeerSSL *(*StreamPeerSSL::_create)() = NULL;
 
@@ -49,16 +52,47 @@ bool StreamPeerSSL::is_available() {
 	return available;
 }
 
+PoolByteArray StreamPeerSSL::get_project_cert_array() {
+
+	PoolByteArray out;
+	String certs_path = GLOBAL_DEF("network/ssl/certificates", "");
+	ProjectSettings::get_singleton()->set_custom_property_info("network/ssl/certificates", PropertyInfo(Variant::STRING, "network/ssl/certificates", PROPERTY_HINT_FILE, "*.crt"));
+
+	if (certs_path != "") {
+
+		FileAccess *f = FileAccess::open(certs_path, FileAccess::READ);
+		if (f) {
+			int flen = f->get_len();
+			out.resize(flen + 1);
+			{
+				PoolByteArray::Write w = out.write();
+				f->get_buffer(w.ptr(), flen);
+				w[flen] = 0; //end f string
+			}
+
+			memdelete(f);
+
+#ifdef DEBUG_ENABLED
+			print_line("Loaded certs from '" + certs_path);
+#endif
+		}
+	}
+
+	return out;
+}
+
 void StreamPeerSSL::_bind_methods() {
 
-	ClassDB::bind_method(D_METHOD("accept_stream:Error", "stream:StreamPeer"), &StreamPeerSSL::accept_stream);
-	ClassDB::bind_method(D_METHOD("connect_to_stream:Error", "stream:StreamPeer", "validate_certs", "for_hostname"), &StreamPeerSSL::connect_to_stream, DEFVAL(false), DEFVAL(String()));
+	ClassDB::bind_method(D_METHOD("poll"), &StreamPeerSSL::poll);
+	ClassDB::bind_method(D_METHOD("accept_stream", "stream"), &StreamPeerSSL::accept_stream);
+	ClassDB::bind_method(D_METHOD("connect_to_stream", "stream", "validate_certs", "for_hostname"), &StreamPeerSSL::connect_to_stream, DEFVAL(false), DEFVAL(String()));
 	ClassDB::bind_method(D_METHOD("get_status"), &StreamPeerSSL::get_status);
 	ClassDB::bind_method(D_METHOD("disconnect_from_stream"), &StreamPeerSSL::disconnect_from_stream);
-	BIND_CONSTANT(STATUS_DISCONNECTED);
-	BIND_CONSTANT(STATUS_CONNECTED);
-	BIND_CONSTANT(STATUS_ERROR_NO_CERTIFICATE);
-	BIND_CONSTANT(STATUS_ERROR_HOSTNAME_MISMATCH);
+
+	BIND_ENUM_CONSTANT(STATUS_DISCONNECTED);
+	BIND_ENUM_CONSTANT(STATUS_CONNECTED);
+	BIND_ENUM_CONSTANT(STATUS_ERROR_NO_CERTIFICATE);
+	BIND_ENUM_CONSTANT(STATUS_ERROR_HOSTNAME_MISMATCH);
 }
 
 StreamPeerSSL::StreamPeerSSL() {

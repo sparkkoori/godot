@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,11 +27,13 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "visibility_notifier.h"
 
+#include "engine.h"
+#include "scene/3d/camera.h"
 #include "scene/3d/physics_body.h"
 #include "scene/animation/animation_player.h"
-#include "scene/scene_string_names.h"
 #include "scene/scene_string_names.h"
 
 void VisibilityNotifier::_enter_camera(Camera *p_camera) {
@@ -42,6 +44,7 @@ void VisibilityNotifier::_enter_camera(Camera *p_camera) {
 		emit_signal(SceneStringNames::get_singleton()->screen_entered);
 		_screen_enter();
 	}
+
 	emit_signal(SceneStringNames::get_singleton()->camera_entered, p_camera);
 }
 
@@ -58,7 +61,7 @@ void VisibilityNotifier::_exit_camera(Camera *p_camera) {
 	}
 }
 
-void VisibilityNotifier::set_aabb(const Rect3 &p_aabb) {
+void VisibilityNotifier::set_aabb(const AABB &p_aabb) {
 
 	if (aabb == p_aabb)
 		return;
@@ -72,7 +75,7 @@ void VisibilityNotifier::set_aabb(const Rect3 &p_aabb) {
 	update_gizmo();
 }
 
-Rect3 VisibilityNotifier::get_aabb() const {
+AABB VisibilityNotifier::get_aabb() const {
 
 	return aabb;
 }
@@ -106,7 +109,7 @@ void VisibilityNotifier::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_aabb"), &VisibilityNotifier::get_aabb);
 	ClassDB::bind_method(D_METHOD("is_on_screen"), &VisibilityNotifier::is_on_screen);
 
-	ADD_PROPERTY(PropertyInfo(Variant::RECT3, "aabb"), "set_aabb", "get_aabb");
+	ADD_PROPERTY(PropertyInfo(Variant::AABB, "aabb"), "set_aabb", "get_aabb");
 
 	ADD_SIGNAL(MethodInfo("camera_entered", PropertyInfo(Variant::OBJECT, "camera", PROPERTY_HINT_RESOURCE_TYPE, "Camera")));
 	ADD_SIGNAL(MethodInfo("camera_exited", PropertyInfo(Variant::OBJECT, "camera", PROPERTY_HINT_RESOURCE_TYPE, "Camera")));
@@ -116,7 +119,7 @@ void VisibilityNotifier::_bind_methods() {
 
 VisibilityNotifier::VisibilityNotifier() {
 
-	aabb = Rect3(Vector3(-1, -1, -1), Vector3(2, 2, 2));
+	aabb = AABB(Vector3(-1, -1, -1), Vector3(2, 2, 2));
 	set_notify_transform(true);
 }
 
@@ -149,7 +152,7 @@ void VisibilityEnabler::_find_nodes(Node *p_node) {
 
 	if (enabler[ENABLER_FREEZE_BODIES]) {
 
-		RigidBody *rb = p_node->cast_to<RigidBody>();
+		RigidBody *rb = Object::cast_to<RigidBody>(p_node);
 		if (rb && ((rb->get_mode() == RigidBody::MODE_CHARACTER || (rb->get_mode() == RigidBody::MODE_RIGID && !rb->is_able_to_sleep())))) {
 
 			add = true;
@@ -159,7 +162,7 @@ void VisibilityEnabler::_find_nodes(Node *p_node) {
 
 	if (enabler[ENABLER_PAUSE_ANIMATIONS]) {
 
-		AnimationPlayer *ap = p_node->cast_to<AnimationPlayer>();
+		AnimationPlayer *ap = Object::cast_to<AnimationPlayer>(p_node);
 		if (ap) {
 			add = true;
 		}
@@ -167,7 +170,7 @@ void VisibilityEnabler::_find_nodes(Node *p_node) {
 
 	if (add) {
 
-		p_node->connect(SceneStringNames::get_singleton()->tree_exited, this, "_node_removed", varray(p_node), CONNECT_ONESHOT);
+		p_node->connect(SceneStringNames::get_singleton()->tree_exiting, this, "_node_removed", varray(p_node), CONNECT_ONESHOT);
 		nodes[p_node] = meta;
 		_change_node_state(p_node, false);
 	}
@@ -185,7 +188,7 @@ void VisibilityEnabler::_notification(int p_what) {
 
 	if (p_what == NOTIFICATION_ENTER_TREE) {
 
-		if (get_tree()->is_editor_hint())
+		if (Engine::get_singleton()->is_editor_hint())
 			return;
 
 		Node *from = this;
@@ -198,14 +201,14 @@ void VisibilityEnabler::_notification(int p_what) {
 
 	if (p_what == NOTIFICATION_EXIT_TREE) {
 
-		if (get_tree()->is_editor_hint())
+		if (Engine::get_singleton()->is_editor_hint())
 			return;
 
 		for (Map<Node *, Variant>::Element *E = nodes.front(); E; E = E->next()) {
 
 			if (!visible)
 				_change_node_state(E->key(), true);
-			E->key()->disconnect(SceneStringNames::get_singleton()->tree_exited, this, "_node_removed");
+			E->key()->disconnect(SceneStringNames::get_singleton()->tree_exiting, this, "_node_removed");
 		}
 
 		nodes.clear();
@@ -217,14 +220,14 @@ void VisibilityEnabler::_change_node_state(Node *p_node, bool p_enabled) {
 	ERR_FAIL_COND(!nodes.has(p_node));
 
 	{
-		RigidBody *rb = p_node->cast_to<RigidBody>();
+		RigidBody *rb = Object::cast_to<RigidBody>(p_node);
 		if (rb)
 
 			rb->set_sleeping(!p_enabled);
 	}
 
 	{
-		AnimationPlayer *ap = p_node->cast_to<AnimationPlayer>();
+		AnimationPlayer *ap = Object::cast_to<AnimationPlayer>(p_node);
 
 		if (ap) {
 
@@ -237,7 +240,7 @@ void VisibilityEnabler::_node_removed(Node *p_node) {
 
 	if (!visible)
 		_change_node_state(p_node, true);
-	p_node->disconnect(SceneStringNames::get_singleton()->tree_exited, this, "_node_removed");
+	p_node->disconnect(SceneStringNames::get_singleton()->tree_exiting, this, "_node_removed");
 	nodes.erase(p_node);
 }
 
@@ -250,9 +253,9 @@ void VisibilityEnabler::_bind_methods() {
 	ADD_PROPERTYI(PropertyInfo(Variant::BOOL, "pause_animations"), "set_enabler", "is_enabler_enabled", ENABLER_PAUSE_ANIMATIONS);
 	ADD_PROPERTYI(PropertyInfo(Variant::BOOL, "freeze_bodies"), "set_enabler", "is_enabler_enabled", ENABLER_FREEZE_BODIES);
 
-	BIND_CONSTANT(ENABLER_FREEZE_BODIES);
-	BIND_CONSTANT(ENABLER_PAUSE_ANIMATIONS);
-	BIND_CONSTANT(ENABLER_MAX);
+	BIND_ENUM_CONSTANT(ENABLER_PAUSE_ANIMATIONS);
+	BIND_ENUM_CONSTANT(ENABLER_FREEZE_BODIES);
+	BIND_ENUM_CONSTANT(ENABLER_MAX);
 }
 
 void VisibilityEnabler::set_enabler(Enabler p_enabler, bool p_enable) {

@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,28 +27,41 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #ifndef RASTERIZERCANVASGLES3_H
 #define RASTERIZERCANVASGLES3_H
 
 #include "rasterizer_storage_gles3.h"
 #include "servers/visual/rasterizer.h"
-#include "shaders/canvas_shadow.glsl.h"
+#include "shaders/canvas_shadow.glsl.gen.h"
+
+class RasterizerSceneGLES3;
 
 class RasterizerCanvasGLES3 : public RasterizerCanvas {
 public:
 	struct CanvasItemUBO {
 
 		float projection_matrix[16];
-		float time[4];
+		float time;
+		uint8_t padding[12];
 	};
+
+	RasterizerSceneGLES3 *scene_render;
 
 	struct Data {
 
 		GLuint canvas_quad_vertices;
 		GLuint canvas_quad_array;
 
-		GLuint primitive_quad_buffer;
-		GLuint primitive_quad_buffer_arrays[4];
+		GLuint polygon_buffer;
+		GLuint polygon_buffer_quad_arrays[4];
+		GLuint polygon_buffer_pointer_array;
+		GLuint polygon_index_buffer;
+
+		GLuint particle_quad_vertices;
+		GLuint particle_quad_array;
+
+		uint32_t polygon_buffer_size;
 
 	} data;
 
@@ -60,8 +73,10 @@ public:
 		CanvasShadowShaderGLES3 canvas_shadow_shader;
 
 		bool using_texture_rect;
+		bool using_ninepatch;
 
 		RID current_tex;
+		RID current_normal;
 		RasterizerStorageGLES3::Texture *current_tex_ptr;
 
 		Transform vp;
@@ -69,6 +84,9 @@ public:
 		Color canvas_item_modulate;
 		Transform2D extra_matrix;
 		Transform2D final_transform;
+		bool using_skeleton;
+		Transform2D skeleton_transform;
+		Transform2D skeleton_transform_inverse;
 
 	} state;
 
@@ -89,6 +107,7 @@ public:
 			float light_height;
 			float light_outside_alpha;
 			float shadow_distance_mult;
+			uint8_t padding[4];
 		} ubo_data;
 
 		GLuint ubo;
@@ -103,14 +122,17 @@ public:
 	virtual void canvas_begin();
 	virtual void canvas_end();
 
-	_FORCE_INLINE_ void _set_texture_rect_mode(bool p_enable);
-	_FORCE_INLINE_ RasterizerStorageGLES3::Texture *_bind_canvas_texture(const RID &p_texture);
+	_FORCE_INLINE_ void _set_texture_rect_mode(bool p_enable, bool p_ninepatch = false);
+	_FORCE_INLINE_ RasterizerStorageGLES3::Texture *_bind_canvas_texture(const RID &p_texture, const RID &p_normal_map);
 
 	_FORCE_INLINE_ void _draw_gui_primitive(int p_points, const Vector2 *p_vertices, const Color *p_colors, const Vector2 *p_uvs);
-	_FORCE_INLINE_ void _draw_polygon(int p_vertex_count, const int *p_indices, const Vector2 *p_vertices, const Vector2 *p_uvs, const Color *p_colors, const RID &p_texture, bool p_singlecolor);
-	_FORCE_INLINE_ void _canvas_item_render_commands(Item *p_item, Item *current_clip, bool &reclip);
+	_FORCE_INLINE_ void _draw_polygon(const int *p_indices, int p_index_count, int p_vertex_count, const Vector2 *p_vertices, const Vector2 *p_uvs, const Color *p_colors, bool p_singlecolor, const int *p_bones, const float *p_weights);
+	_FORCE_INLINE_ void _draw_generic(GLuint p_primitive, int p_vertex_count, const Vector2 *p_vertices, const Vector2 *p_uvs, const Color *p_colors, bool p_singlecolor);
 
-	virtual void canvas_render_items(Item *p_item_list, int p_z, const Color &p_modulate, Light *p_light);
+	_FORCE_INLINE_ void _canvas_item_render_commands(Item *p_item, Item *current_clip, bool &reclip);
+	_FORCE_INLINE_ void _copy_texscreen(const Rect2 &p_rect);
+
+	virtual void canvas_render_items(Item *p_item_list, int p_z, const Color &p_modulate, Light *p_light, const Transform2D &p_transform);
 	virtual void canvas_debug_viewport_shadows(Light *p_lights_with_shadow);
 
 	virtual void canvas_light_shadow_buffer_update(RID p_buffer, const Transform2D &p_light_xform, int p_light_mask, float p_near, float p_far, LightOccluderInstance *p_occluders, CameraMatrix *p_xform_cache);
@@ -121,6 +143,8 @@ public:
 
 	void initialize();
 	void finalize();
+
+	virtual void draw_window_margins(int *black_margin, RID *black_image);
 
 	RasterizerCanvasGLES3();
 };

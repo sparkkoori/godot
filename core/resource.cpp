@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,13 +27,14 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "resource.h"
 
 #include "core_string_names.h"
 #include "io/resource_loader.h"
 #include "os/file_access.h"
+#include "scene/main/node.h" //only so casting works
 #include "script_language.h"
-
 #include <stdio.h>
 
 void Resource::emit_changed() {
@@ -69,12 +70,11 @@ void Resource::set_path(const String &p_path, bool p_take_over) {
 			ResourceCache::resources.get(p_path)->set_name("");
 			ResourceCache::lock->write_unlock();
 		} else {
-			ERR_EXPLAIN("Another resource is loaded from path: " + p_path);
-
 			ResourceCache::lock->read_lock();
 			bool exists = ResourceCache::resources.has(p_path);
 			ResourceCache::lock->read_unlock();
 
+			ERR_EXPLAIN("Another resource is loaded from path: " + p_path + " (possible cyclic resource inclusion)");
 			ERR_FAIL_COND(exists);
 		}
 	}
@@ -127,7 +127,7 @@ void Resource::reload_from_file() {
 	if (!path.is_resource_file())
 		return;
 
-	Ref<Resource> s = ResourceLoader::load(path, get_class(), true);
+	Ref<Resource> s = ResourceLoader::load(ResourceLoader::path_remap(path), get_class(), true);
 
 	if (!s.is_valid())
 		return;
@@ -185,6 +185,35 @@ Ref<Resource> Resource::duplicate_for_local_scene(Node *p_for_scene, Map<Ref<Res
 	return Ref<Resource>(r);
 }
 
+void Resource::configure_for_local_scene(Node *p_for_scene, Map<Ref<Resource>, Ref<Resource> > &remap_cache) {
+
+	print_line("configure for local: " + get_class());
+	List<PropertyInfo> plist;
+	get_property_list(&plist);
+
+	local_scene = p_for_scene;
+
+	for (List<PropertyInfo>::Element *E = plist.front(); E; E = E->next()) {
+
+		if (!(E->get().usage & PROPERTY_USAGE_STORAGE))
+			continue;
+		Variant p = get(E->get().name);
+		if (p.get_type() == Variant::OBJECT) {
+
+			RES sr = p;
+			if (sr.is_valid()) {
+
+				if (sr->is_local_to_scene()) {
+					if (!remap_cache.has(sr)) {
+						sr->configure_for_local_scene(p_for_scene, remap_cache);
+						remap_cache[sr] = sr;
+					}
+				}
+			}
+		}
+	}
+}
+
 Ref<Resource> Resource::duplicate(bool p_subresources) const {
 
 	List<PropertyInfo> plist;
@@ -197,7 +226,7 @@ Ref<Resource> Resource::duplicate(bool p_subresources) const {
 
 		if (!(E->get().usage & PROPERTY_USAGE_STORAGE))
 			continue;
-		Variant p = get(E->get().name);
+		Variant p = get(E->get().name).duplicate(true);
 		if (p.get_type() == Variant::OBJECT && p_subresources) {
 
 			RES sr = p;
@@ -228,12 +257,12 @@ RID Resource::get_rid() const {
 
 void Resource::register_owner(Object *p_owner) {
 
-	owners.insert(p_owner->get_instance_ID());
+	owners.insert(p_owner->get_instance_id());
 }
 
 void Resource::unregister_owner(Object *p_owner) {
 
-	owners.erase(p_owner->get_instance_ID());
+	owners.erase(p_owner->get_instance_id());
 }
 
 void Resource::notify_change_to_owners() {
@@ -302,6 +331,31 @@ void Resource::setup_local_to_scene() {
 
 Node *(*Resource::_get_local_scene_func)() = NULL;
 
+void Resource::set_as_translation_remapped(bool p_remapped) {
+
+	if (remapped_list.in_list() == p_remapped)
+		return;
+
+	if (ResourceCache::lock) {
+		ResourceCache::lock->write_lock();
+	}
+
+	if (p_remapped) {
+		ResourceLoader::remapped_list.add(&remapped_list);
+	} else {
+		ResourceLoader::remapped_list.remove(&remapped_list);
+	}
+
+	if (ResourceCache::lock) {
+		ResourceCache::lock->write_unlock();
+	}
+}
+
+bool Resource::is_translation_remapped() const {
+
+	return remapped_list.in_list();
+}
+
 void Resource::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("set_path", "path"), &Resource::_set_path);
@@ -312,7 +366,7 @@ void Resource::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_rid"), &Resource::get_rid);
 	ClassDB::bind_method(D_METHOD("set_local_to_scene", "enable"), &Resource::set_local_to_scene);
 	ClassDB::bind_method(D_METHOD("is_local_to_scene"), &Resource::is_local_to_scene);
-	ClassDB::bind_method(D_METHOD("get_local_scene:Node"), &Resource::get_local_scene);
+	ClassDB::bind_method(D_METHOD("get_local_scene"), &Resource::get_local_scene);
 	ClassDB::bind_method(D_METHOD("setup_local_to_scene"), &Resource::setup_local_to_scene);
 
 	ClassDB::bind_method(D_METHOD("duplicate", "subresources"), &Resource::duplicate, DEFVAL(false));
@@ -325,7 +379,8 @@ void Resource::_bind_methods() {
 	BIND_VMETHOD(MethodInfo("_setup_local_to_scene"));
 }
 
-Resource::Resource() {
+Resource::Resource() :
+		remapped_list(this) {
 
 #ifdef TOOLS_ENABLED
 	last_modified_time = 0;

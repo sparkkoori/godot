@@ -3,10 +3,10 @@
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
-/*                    http://www.godotengine.org                         */
+/*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2017 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2017 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -27,8 +27,9 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+
 #include "broad_phase_2d_hash_grid.h"
-#include "global_config.h"
+#include "project_settings.h"
 
 #define LARGE_ELEMENT_FI 1.01239812
 
@@ -203,9 +204,11 @@ void BroadPhase2DHashGrid::_exit_grid(Element *p_elem, const Rect2 &p_rect, bool
 	if (sz.width * sz.height > large_object_min_surface) {
 
 		//unpair all elements, instead of checking all, just check what is already paired, so we at least save from checking static vs static
-		for (Map<Element *, PairData *>::Element *E = p_elem->paired.front(); E; E = E->next()) {
-
+		Map<Element *, PairData *>::Element *E = p_elem->paired.front();
+		while (E) {
+			Map<Element *, PairData *>::Element *next = E->next();
 			_unpair_attempt(p_elem, E->key());
+			E = next;
 		}
 
 		if (large_elements[p_elem].dec() == 0) {
@@ -636,9 +639,9 @@ BroadPhase2DHashGrid::BroadPhase2DHashGrid() {
 	hash_table = memnew_arr(PosBin *, hash_table_size);
 
 	cell_size = GLOBAL_DEF("physics/2d/cell_size", 128);
-	large_object_min_surface = GLOBAL_DEF("physics/2d/large_object_surface_treshold_in_cells", 512);
+	large_object_min_surface = GLOBAL_DEF("physics/2d/large_object_surface_threshold_in_cells", 512);
 
-	for (int i = 0; i < hash_table_size; i++)
+	for (uint32_t i = 0; i < hash_table_size; i++)
 		hash_table[i] = NULL;
 	pass = 1;
 
@@ -647,7 +650,7 @@ BroadPhase2DHashGrid::BroadPhase2DHashGrid() {
 
 BroadPhase2DHashGrid::~BroadPhase2DHashGrid() {
 
-	for (int i = 0; i < hash_table_size; i++) {
+	for (uint32_t i = 0; i < hash_table_size; i++) {
 		while (hash_table[i]) {
 			PosBin *pb = hash_table[i];
 			hash_table[i] = pb->next;
