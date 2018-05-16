@@ -912,6 +912,10 @@ Ref<Theme> create_editor_theme(const Ref<Theme> p_theme) {
 	theme->set_constant("shadow_as_outline", "Label", 0 * EDSCALE);
 	theme->set_constant("line_spacing", "Label", 3 * EDSCALE);
 
+	// LinkButton
+	theme->set_stylebox("focus", "LinkButton", style_empty);
+	theme->set_color("font_color", "LinkButton", font_color);
+
 	// TooltipPanel
 	Ref<StyleBoxFlat> style_tooltip = style_popup->duplicate();
 	style_tooltip->set_bg_color(Color(mono_color.r, mono_color.g, mono_color.b, 0.9));
@@ -1043,6 +1047,9 @@ Ref<Theme> create_editor_theme(const Ref<Theme> p_theme) {
 	const Color comment_color = dim_color;
 	const Color string_color = Color::html(dark_theme ? "#ffd942" : "#ffd118").linear_interpolate(mono_color, dark_theme ? 0.5 : 0.3);
 
+	const Color function_definition_color = Color::html(dark_theme ? "#01e1ff" : "#00a5ba");
+	const Color node_path_color = Color::html(dark_theme ? "64c15a" : "#518b4b");
+
 	const Color te_background_color = Color(0, 0, 0, 0);
 	const Color completion_background_color = base_color;
 	const Color completion_selected_color = alpha1;
@@ -1101,6 +1108,9 @@ Ref<Theme> create_editor_theme(const Ref<Theme> p_theme) {
 		setting->set_initial_value("text_editor/highlighting/code_folding_color", code_folding_color, true);
 		setting->set_initial_value("text_editor/highlighting/search_result_color", search_result_color, true);
 		setting->set_initial_value("text_editor/highlighting/search_result_border_color", search_result_border_color, true);
+
+		setting->set_initial_value("text_editor/highlighting/gdscript/function_definition_color", function_definition_color, true);
+		setting->set_initial_value("text_editor/highlighting/gdscript/node_path_color", node_path_color, true);
 	} else if (text_editor_color_theme == "Default") {
 		setting->set_initial_value("text_editor/highlighting/symbol_color", Color::html("badfff"), true);
 		setting->set_initial_value("text_editor/highlighting/keyword_color", Color::html("ffffb3"), true);
@@ -1132,6 +1142,9 @@ Ref<Theme> create_editor_theme(const Ref<Theme> p_theme) {
 		setting->set_initial_value("text_editor/highlighting/code_folding_color", Color(0.8, 0.8, 0.8, 0.8), true);
 		setting->set_initial_value("text_editor/highlighting/search_result_color", Color(0.05, 0.25, 0.05, 1), true);
 		setting->set_initial_value("text_editor/highlighting/search_result_border_color", Color(0.1, 0.45, 0.1, 1), true);
+
+		setting->set_initial_value("text_editor/highlighting/gdscript/function_definition_color", Color::html("#01e1ff"), true);
+		setting->set_initial_value("text_editor/highlighting/gdscript/node_path_color", Color::html("#64c15a"), true);
 	}
 
 	return theme;
