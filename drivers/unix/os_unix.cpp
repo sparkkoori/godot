@@ -320,6 +320,74 @@ Error OS_Unix::execute(const String &p_path, const List<String> &p_arguments, bo
 	return OK;
 }
 
+Error OS_Unix::execute_with_stdio_pipes(const String &p_path, const List<String> &p_arguments, FILE **r_stdin, FILE **r_stdout, FILE **r_stderr, ProcessID *r_child_id){
+	int fds[3][2];
+	for (int i= 0; i < 3; i++) {
+		int (&fd)[2] = fds[i];
+		if (pipe(fd) == -1){
+				perror("Could not create pipe in execute_with_stdio_pipes()");
+				abort();
+		}
+	}
+
+	Vector<CharString> cs;
+	cs.push_back(p_path.utf8());
+	for (int i = 0; i < p_arguments.size(); i++)
+		cs.push_back(p_arguments[i].utf8());
+
+	Vector<char *> args;
+	for (int i = 0; i < cs.size(); i++)
+		args.push_back((char *)cs[i].get_data());
+	args.push_back(0);
+
+
+	pid_t pid;
+	switch (pid = fork())
+	{
+		case -1:
+			perror ("fork() failed");
+			abort();
+		case 0:
+		  /* This is processed by the child */
+			close(fds[0][1]);
+			dup2(fds[0][0], STDIN_FILENO);
+			close(fds[0][0]);
+
+			close(fds[1][0]);
+			dup2(fds[1][1], STDOUT_FILENO);
+			close(fds[1][1]);
+
+			close(fds[2][0]);
+			dup2(fds[2][1], STDERR_FILENO);
+			close(fds[2][1]);
+
+		  execv (p_path.utf8().get_data(), &args[0]);
+			perror("execv() failed");
+			abort();
+		default:
+		  /* This is processed by the parent */
+			close(fds[0][0]);
+			close(fds[1][1]);
+			close(fds[2][1]);
+
+			if (r_stdin)
+				*r_stdin = fdopen(fds[0][1],"w");
+
+			if (r_stdout)
+				*r_stdout = fdopen(fds[1][0],"r");
+
+			if (r_stderr)
+				*r_stderr = fdopen(fds[2][0],"r");
+
+			if (r_child_id)
+				*r_child_id = pid;
+
+		  break;
+	}
+
+	return OK;
+};
+
 Error OS_Unix::kill(const ProcessID &p_pid) {
 
 	int ret = ::kill(p_pid, SIGKILL);

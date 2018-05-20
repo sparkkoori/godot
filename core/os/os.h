@@ -230,6 +230,7 @@ public:
 
 	virtual String get_executable_path() const;
 	virtual Error execute(const String &p_path, const List<String> &p_arguments, bool p_blocking, ProcessID *r_child_id = NULL, String *r_pipe = NULL, int *r_exitcode = NULL, bool read_stderr = false) = 0;
+	virtual Error execute_with_stdio_pipes(const String &p_path, const List<String> &p_arguments, FILE **r_stdin=NULL, FILE **r_stdout=NULL, FILE **r_stderr=NULL, ProcessID *r_child_id = NULL) = 0;
 	virtual Error kill(const ProcessID &p_pid) = 0;
 	virtual int get_process_id() const;
 

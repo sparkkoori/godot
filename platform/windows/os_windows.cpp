@@ -2088,6 +2088,11 @@ Error OS_Windows::execute(const String &p_path, const List<String> &p_arguments,
 	return OK;
 };
 
+Error OS_Windows::execute_with_stdio_pipes(const String &p_path, const List<String> &p_arguments, FILE **r_stdin, FILE **r_stdout, FILE **r_stderr, ProcessID *r_child_id){
+	//TODO execute_with_stdio_pipes(windows)
+	return FAILED;
+};
+
 Error OS_Windows::kill(const ProcessID &p_pid) {
 
 	HANDLE h;

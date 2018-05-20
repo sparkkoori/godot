@@ -663,6 +663,10 @@ Error OSUWP::execute(const String &p_path, const List<String> &p_arguments, bool
 	return FAILED;
 };
 
+Error OSUWP::execute_with_stdio_pipes(const String &p_path, const List<String> &p_arguments, FILE **r_stdin, FILE **r_stdout, FILE **r_stderr, ProcessID *r_child_id){
+	return FAILED;
+};
+
 Error OSUWP::kill(const ProcessID &p_pid) {
 
 	return FAILED;
